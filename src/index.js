@@ -3,4 +3,4 @@ import { createRoot } from 'react-dom/client';
 import MurphTracker from './App';
 
 const root = createRoot(document.getElementById('root'));
-root.render(<App />);
+root.render(<MurphTracker />);
