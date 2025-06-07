@@ -165,7 +165,7 @@ const MurphTracker = () => {
     }
   };
 
-  // Setup Screen
+  // Setup Screen // force update
   if (screen === 'setup') {
     return (
       <div className="min-h-screen bg-gray-900 text-white p-4">
