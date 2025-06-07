@@ -319,7 +319,7 @@ const MurphTracker = () => {
                             >
                               −
                             </button>
-                            <div className="bg-blue-900 rounded-lg p-2 text-center font-semibold w-[72px] h-[36px] flex items-center justify-center">
+                            <div className="bg-blue-900 rounded-lg text-center font-semibold w-[72px] h-[36px] flex items-center justify-center font-mono">
                               {customPartition.rounds}
                             </div>
                             <button 
@@ -341,7 +341,7 @@ const MurphTracker = () => {
                             >
                               −
                             </button>
-                            <div className="bg-blue-900 rounded-lg p-2 text-center font-semibold w-[72px] h-[36px] flex items-center justify-center">
+                            <div className="bg-blue-900 rounded-lg text-center font-semibold w-[72px] h-[36px] flex items-center justify-center font-mono">
                               {customPartition.pullups}
                             </div>
                             <button 
@@ -363,7 +363,7 @@ const MurphTracker = () => {
                             >
                               −
                             </button>
-                            <div className="bg-blue-900 rounded-lg p-2 text-center font-semibold w-[72px] h-[36px] flex items-center justify-center">
+                            <div className="bg-blue-900 rounded-lg text-center font-semibold w-[72px] h-[36px] flex items-center justify-center font-mono">
                               {customPartition.pushups}
                             </div>
                             <button 
@@ -385,7 +385,7 @@ const MurphTracker = () => {
                             >
                               −
                             </button>
-                            <div className="bg-blue-900 rounded-lg p-2 text-center font-semibold w-[72px] h-[36px] flex items-center justify-center">
+                            <div className="bg-blue-900 rounded-lg text-center font-semibold w-[72px] h-[36px] flex items-center justify-center font-mono">
                               {customPartition.squats}
                             </div>
                             <button 
