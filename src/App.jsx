@@ -77,65 +77,69 @@ const MurphTracker = () => {
 
   // Accelerated counter hook
   const useAcceleratedCounter = () => {
-    const timeoutRef = useRef(null);
     const intervalRef = useRef(null);
-    const accelerationTimeoutRef = useRef(null);
+    const startTimeRef = useRef(null);
+    const lastActionTimeRef = useRef(null);
 
     const startCounter = useCallback((action) => {
-      // Clear any existing timers
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (accelerationTimeoutRef.current) clearTimeout(accelerationTimeoutRef.current);
+      // Clear any existing interval
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
       
       // Fire immediately
       action();
       triggerHapticFeedback('light');
       
-      // Start repeating after delay
-      timeoutRef.current = setTimeout(() => {
-        // Start at 200ms intervals
-        let currentSpeed = 200;
+      // Record start time
+      const now = Date.now();
+      startTimeRef.current = now;
+      lastActionTimeRef.current = now;
+      
+      // Start a fast-running interval that checks if it's time to fire
+      intervalRef.current = setInterval(() => {
+        const now = Date.now();
+        const totalElapsed = now - startTimeRef.current;
+        const timeSinceLastAction = now - lastActionTimeRef.current;
         
-        const repeat = () => {
+        // Determine current speed based on total elapsed time
+        let requiredInterval;
+        if (totalElapsed < 1000) {
+          requiredInterval = 300; // Slow for first second
+        } else if (totalElapsed < 2000) {
+          requiredInterval = 200; // Faster after 1 second  
+        } else if (totalElapsed < 3000) {
+          requiredInterval = 100; // Even faster after 2 seconds
+        } else {
+          requiredInterval = 50;  // Max speed after 3 seconds
+        }
+        
+        // Fire action if enough time has passed
+        if (timeSinceLastAction >= requiredInterval) {
           action();
           triggerHapticFeedback('light');
-        };
+          lastActionTimeRef.current = now;
+        }
         
-        intervalRef.current = setInterval(repeat, currentSpeed);
-        
-        // Accelerate every 1000ms
-        const accelerate = () => {
-          currentSpeed = Math.max(50, currentSpeed - 50); // Get faster by 50ms, min 50ms
-          
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = setInterval(repeat, currentSpeed);
-          }
-          
-          // Schedule next acceleration if not at max speed
-          if (currentSpeed > 50) {
-            accelerationTimeoutRef.current = setTimeout(accelerate, 1000);
-          }
-        };
-        
-        // Start acceleration after 1 second
-        accelerationTimeoutRef.current = setTimeout(accelerate, 1000);
-        
-      }, 300);
+      }, 20); // Check every 20ms for smooth acceleration
+      
     }, []);
 
     const stopCounter = useCallback(() => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (accelerationTimeoutRef.current) clearTimeout(accelerationTimeoutRef.current);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      startTimeRef.current = null;
+      lastActionTimeRef.current = null;
     }, []);
 
     // Cleanup on unmount
     useEffect(() => {
       return () => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        if (accelerationTimeoutRef.current) clearTimeout(accelerationTimeoutRef.current);
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
       };
     }, []);
 
@@ -300,44 +304,53 @@ const MurphTracker = () => {
   // Accelerated Button Component
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
     const { startCounter, stopCounter } = useAcceleratedCounter();
+    const isHoldingRef = useRef(false);
 
-    const handleMouseDown = () => {
-      if (!disabled) {
+    const handleStart = useCallback(() => {
+      if (!disabled && !isHoldingRef.current) {
+        console.log('Starting counter'); // Debug log
+        isHoldingRef.current = true;
         startCounter(onAction);
       }
-    };
+    }, [onAction, startCounter, disabled]);
 
-    const handleMouseUp = () => {
-      stopCounter();
-    };
-
-    const handleTouchStart = (e) => {
-      e.preventDefault(); // Prevent mouse events from firing
-      if (!disabled) {
-        startCounter(onAction);
+    const handleStop = useCallback(() => {
+      if (isHoldingRef.current) {
+        console.log('Stopping counter'); // Debug log
+        isHoldingRef.current = false;
+        stopCounter();
       }
-    };
+    }, [stopCounter]);
 
-    const handleTouchEnd = (e) => {
+    // Use a single event approach that works on both mobile and desktop
+    const handlePointerDown = (e) => {
       e.preventDefault();
-      stopCounter();
+      handleStart();
+    };
+
+    const handlePointerUp = (e) => {
+      e.preventDefault();
+      handleStop();
+    };
+
+    const handlePointerLeave = (e) => {
+      handleStop();
     };
 
     return (
       <button
         className={className}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
+        onPointerCancel={handleStop}
         disabled={disabled}
         style={{ 
           userSelect: 'none', 
           WebkitUserSelect: 'none',
           WebkitTouchCallout: 'none',
-          WebkitTapHighlightColor: 'transparent'
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'none'
         }}
       >
         <span style={{ 
