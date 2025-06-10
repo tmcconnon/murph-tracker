@@ -283,19 +283,20 @@ const MurphTracker = () => {
     }
   };
 
-  // Accelerated Button Component - Memoized to prevent re-renders
-  const AcceleratedButton = React.memo(({ onAction, children, className, disabled = false }) => {
-    const intervalIdRef = useRef(null);
+  // Accelerated Button Component - Using DOM storage for interval ID
+  const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
+    const buttonRef = useRef(null);
 
     const handleMouseDown = (e) => {
       e.preventDefault();
       console.log('Mouse down - starting interval');
       
-      if (!disabled) {
-        // Clear any existing interval
-        if (intervalIdRef.current) {
-          clearInterval(intervalIdRef.current);
-          intervalIdRef.current = null;
+      if (!disabled && buttonRef.current) {
+        // Clear any existing interval stored on the DOM element
+        const existingInterval = buttonRef.current.dataset.intervalId;
+        if (existingInterval) {
+          clearInterval(parseInt(existingInterval));
+          delete buttonRef.current.dataset.intervalId;
         }
         
         // Fire immediately
@@ -309,41 +310,54 @@ const MurphTracker = () => {
           triggerHapticFeedback('light');
         }, 200);
         
-        intervalIdRef.current = intervalId;
-        console.log('✅ Interval created:', intervalId);
+        // Store interval ID on the DOM element
+        buttonRef.current.dataset.intervalId = intervalId.toString();
+        console.log('✅ Interval created and stored on DOM:', intervalId);
       }
     };
 
     const handleMouseUp = (e) => {
       e.preventDefault();
-      console.log('Mouse up - clearing interval:', intervalIdRef.current);
       
-      if (intervalIdRef.current) {
-        clearInterval(intervalIdRef.current);
-        intervalIdRef.current = null;
-        console.log('✅ Interval cleared');
+      if (buttonRef.current) {
+        const intervalId = buttonRef.current.dataset.intervalId;
+        console.log('Mouse up - checking for interval:', intervalId);
+        
+        if (intervalId) {
+          clearInterval(parseInt(intervalId));
+          delete buttonRef.current.dataset.intervalId;
+          console.log('✅ Interval cleared from DOM');
+        } else {
+          console.log('❌ No interval found on DOM');
+        }
       }
     };
 
     const handleMouseLeave = (e) => {
-      console.log('Mouse leave - clearing interval:', intervalIdRef.current);
-      if (intervalIdRef.current) {
-        clearInterval(intervalIdRef.current);
-        intervalIdRef.current = null;
+      if (buttonRef.current) {
+        const intervalId = buttonRef.current.dataset.intervalId;
+        console.log('Mouse leave - checking for interval:', intervalId);
+        
+        if (intervalId) {
+          clearInterval(parseInt(intervalId));
+          delete buttonRef.current.dataset.intervalId;
+          console.log('✅ Interval cleared on leave');
+        }
       }
     };
 
     // Cleanup on unmount
     useEffect(() => {
       return () => {
-        if (intervalIdRef.current) {
-          clearInterval(intervalIdRef.current);
+        if (buttonRef.current?.dataset.intervalId) {
+          clearInterval(parseInt(buttonRef.current.dataset.intervalId));
         }
       };
     }, []);
 
     return (
       <button
+        ref={buttonRef}
         className={className}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
@@ -365,7 +379,7 @@ const MurphTracker = () => {
         </span>
       </button>
     );
-  });
+  };
 
   // Hamburger Menu
   const HamburgerMenu = () => (
