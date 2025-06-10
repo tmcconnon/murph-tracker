@@ -78,11 +78,15 @@ const MurphTracker = () => {
   // Accelerated counter hook
   const useAcceleratedCounter = () => {
     const intervalRef = useRef(null);
-    const startTimeRef = useRef(null);
-    const lastActionTimeRef = useRef(null);
+    const actionRef = useRef(null);
+    const countRef = useRef(0);
 
     const startCounter = (action) => {
       console.log('startCounter called'); // Debug
+      
+      // Store the action in a ref so it doesn't go stale
+      actionRef.current = action;
+      countRef.current = 0;
       
       // Clear any existing interval
       if (intervalRef.current) {
@@ -93,38 +97,31 @@ const MurphTracker = () => {
       action();
       triggerHapticFeedback('light');
       
-      // Record start time
-      const now = Date.now();
-      startTimeRef.current = now;
-      lastActionTimeRef.current = now;
-      
-      // Start a fast-running interval that checks if it's time to fire
+      // Start simple repeating interval
       intervalRef.current = setInterval(() => {
-        const now = Date.now();
-        const totalElapsed = now - startTimeRef.current;
-        const timeSinceLastAction = now - lastActionTimeRef.current;
-        
-        // Determine current speed based on total elapsed time
-        let requiredInterval;
-        if (totalElapsed < 1000) {
-          requiredInterval = 300; // Slow for first second
-        } else if (totalElapsed < 2000) {
-          requiredInterval = 200; // Faster after 1 second  
-        } else if (totalElapsed < 3000) {
-          requiredInterval = 100; // Even faster after 2 seconds
-        } else {
-          requiredInterval = 50;  // Max speed after 3 seconds
-        }
-        
-        // Fire action if enough time has passed
-        if (timeSinceLastAction >= requiredInterval) {
-          console.log('Firing action, elapsed:', totalElapsed); // Debug
-          action();
+        if (actionRef.current) {
+          console.log('Firing action, count:', countRef.current); // Debug
+          actionRef.current();
           triggerHapticFeedback('light');
-          lastActionTimeRef.current = now;
+          countRef.current++;
+          
+          // Simple acceleration: get faster every 3 increments
+          if (countRef.current % 3 === 0) {
+            clearInterval(intervalRef.current);
+            const newSpeed = Math.max(50, 300 - (countRef.current * 30));
+            console.log('New speed:', newSpeed); // Debug
+            
+            intervalRef.current = setInterval(() => {
+              if (actionRef.current) {
+                console.log('Firing action (accelerated), count:', countRef.current);
+                actionRef.current();
+                triggerHapticFeedback('light');
+                countRef.current++;
+              }
+            }, newSpeed);
+          }
         }
-        
-      }, 20); // Check every 20ms for smooth acceleration
+      }, 300); // Start slow: 300ms
       
     };
 
@@ -134,8 +131,8 @@ const MurphTracker = () => {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      startTimeRef.current = null;
-      lastActionTimeRef.current = null;
+      actionRef.current = null;
+      countRef.current = 0;
     };
 
     // Cleanup on unmount
