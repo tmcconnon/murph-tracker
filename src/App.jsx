@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, RotateCcw, CheckCircle, ChevronLeft, ChevronRight, History, Trash2, Trophy, Menu, X, Heart } from 'lucide-react';
 
+// Global interval storage outside component - this should be bulletproof
+const intervalStore = new Map();
+
 const MurphTracker = () => {
   const [screen, setScreen] = useState('setup'); // 'setup', 'ready', 'workout', 'complete', 'history', 'about'
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -283,7 +286,7 @@ const MurphTracker = () => {
     }
   };
 
-  // Accelerated Button Component - Using global window storage
+  // Accelerated Button Component - Using global Map storage
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
     const buttonId = useRef(`btn_${Math.random().toString(36).substr(2, 9)}`).current;
 
@@ -292,11 +295,11 @@ const MurphTracker = () => {
       console.log('Mouse down - starting interval, button ID:', buttonId);
       
       if (!disabled) {
-        // Clear any existing interval stored globally
-        const existingInterval = window[`interval_${buttonId}`];
+        // Clear any existing interval stored in Map
+        const existingInterval = intervalStore.get(buttonId);
         if (existingInterval) {
           clearInterval(existingInterval);
-          delete window[`interval_${buttonId}`];
+          intervalStore.delete(buttonId);
           console.log('Cleared existing interval');
         }
         
@@ -311,13 +314,15 @@ const MurphTracker = () => {
           triggerHapticFeedback('light');
         }, 200);
         
-        // Store interval ID globally on window
-        window[`interval_${buttonId}`] = intervalId;
-        console.log('✅ Interval created and stored globally:', intervalId, 'Key:', `interval_${buttonId}`);
+        // Store interval ID in global Map
+        intervalStore.set(buttonId, intervalId);
+        console.log('✅ Interval created and stored in Map:', intervalId, 'Button:', buttonId);
+        console.log('Map size:', intervalStore.size);
         
         // Verify it's stored
         setTimeout(() => {
-          console.log('🔍 Verification - stored interval:', window[`interval_${buttonId}`]);
+          const stored = intervalStore.get(buttonId);
+          console.log('🔍 Verification - Map contains:', stored, 'Map size:', intervalStore.size);
         }, 50);
       }
     };
@@ -325,29 +330,28 @@ const MurphTracker = () => {
     const handleMouseUp = (e) => {
       e.preventDefault();
       
-      const intervalKey = `interval_${buttonId}`;
-      const intervalId = window[intervalKey];
-      console.log('Mouse up - checking for interval with key:', intervalKey, 'Value:', intervalId);
+      const intervalId = intervalStore.get(buttonId);
+      console.log('Mouse up - checking Map for button:', buttonId, 'Found:', intervalId);
+      console.log('Current Map size:', intervalStore.size);
       
       if (intervalId) {
         clearInterval(intervalId);
-        delete window[intervalKey];
-        console.log('✅ Interval cleared from global storage');
+        intervalStore.delete(buttonId);
+        console.log('✅ Interval cleared from Map');
       } else {
-        console.log('❌ No interval found in global storage');
-        // Debug: let's see what's actually on window
-        console.log('Window keys containing "interval":', Object.keys(window).filter(k => k.includes('interval')));
+        console.log('❌ No interval found in Map for button:', buttonId);
+        // Debug: show all keys in Map
+        console.log('All Map keys:', Array.from(intervalStore.keys()));
       }
     };
 
     const handleMouseLeave = (e) => {
-      const intervalKey = `interval_${buttonId}`;
-      const intervalId = window[intervalKey];
-      console.log('Mouse leave - checking for interval:', intervalId);
+      const intervalId = intervalStore.get(buttonId);
+      console.log('Mouse leave - checking Map:', intervalId);
       
       if (intervalId) {
         clearInterval(intervalId);
-        delete window[intervalKey];
+        intervalStore.delete(buttonId);
         console.log('✅ Interval cleared on leave');
       }
     };
@@ -355,10 +359,11 @@ const MurphTracker = () => {
     // Cleanup on unmount
     useEffect(() => {
       return () => {
-        const intervalId = window[`interval_${buttonId}`];
+        const intervalId = intervalStore.get(buttonId);
         if (intervalId) {
           clearInterval(intervalId);
-          delete window[`interval_${buttonId}`];
+          intervalStore.delete(buttonId);
+          console.log('🧹 Cleanup: cleared interval for', buttonId);
         }
       };
     }, [buttonId]);
