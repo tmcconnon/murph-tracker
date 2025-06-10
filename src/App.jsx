@@ -285,19 +285,22 @@ const MurphTracker = () => {
 
   // Accelerated Button Component
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
-    // Use a closure variable instead of ref to avoid React interference
-    let currentIntervalId = null;
+    const intervalIdRef = useRef(null);
+    const componentIdRef = useRef(Math.random()); // Track component identity
+
+    console.log('🔄 AcceleratedButton render, component ID:', componentIdRef.current);
 
     const handleMouseDown = (e) => {
       e.preventDefault();
-      console.log('Mouse down event fired'); // Debug
+      console.log('Mouse down event fired, component ID:', componentIdRef.current); 
+      console.log('Current ref value at mouse down:', intervalIdRef.current);
       
       if (!disabled) {
         // Clear any existing interval
-        if (currentIntervalId) {
-          console.log('Clearing existing interval:', currentIntervalId);
-          clearInterval(currentIntervalId);
-          currentIntervalId = null;
+        if (intervalIdRef.current) {
+          console.log('Clearing existing interval:', intervalIdRef.current);
+          clearInterval(intervalIdRef.current);
+          intervalIdRef.current = null;
         }
         
         // Fire immediately
@@ -307,43 +310,56 @@ const MurphTracker = () => {
         
         // Create interval
         console.log('Creating interval...');
-        currentIntervalId = setInterval(() => {
-          console.log('🔥 INTERVAL FIRING! ID:', currentIntervalId);
+        const intervalId = setInterval(() => {
+          console.log('🔥 INTERVAL FIRING! ID:', intervalId, 'Ref value:', intervalIdRef.current);
           onAction();
           triggerHapticFeedback('light');
         }, 200);
         
-        console.log('✅ Interval created with ID:', currentIntervalId);
+        intervalIdRef.current = intervalId;
+        console.log('✅ Interval created and stored in ref. ID:', intervalId, 'Ref value:', intervalIdRef.current);
         
-        // Let's also test if the interval is immediately available
+        // Test if ref persists
         setTimeout(() => {
-          console.log('🕐 After 50ms, interval ID is:', currentIntervalId);
+          console.log('🕐 After 50ms, ref value is:', intervalIdRef.current, 'Original ID was:', intervalId);
         }, 50);
       }
     };
 
     const handleMouseUp = (e) => {
       e.preventDefault();
-      console.log('Mouse up event fired. Current interval ID:', currentIntervalId); // Debug
+      console.log('Mouse up event fired, component ID:', componentIdRef.current);
+      console.log('Mouse up - Current ref value:', intervalIdRef.current);
       
-      if (currentIntervalId) {
-        console.log('🛑 Clearing interval:', currentIntervalId);
-        clearInterval(currentIntervalId);
-        currentIntervalId = null;
-        console.log('Interval cleared and set to null');
+      if (intervalIdRef.current) {
+        console.log('🛑 Clearing interval from ref:', intervalIdRef.current);
+        clearInterval(intervalIdRef.current);
+        intervalIdRef.current = null;
+        console.log('Interval cleared and ref set to null');
       } else {
-        console.log('❌ No interval to clear');
+        console.log('❌ No interval in ref to clear');
       }
     };
 
     const handleMouseLeave = (e) => {
-      console.log('Mouse leave event fired. Current interval ID:', currentIntervalId); // Debug
-      if (currentIntervalId) {
-        console.log('🛑 Clearing interval on leave:', currentIntervalId);
-        clearInterval(currentIntervalId);
-        currentIntervalId = null;
+      console.log('Mouse leave event fired, component ID:', componentIdRef.current);
+      console.log('Mouse leave - Current ref value:', intervalIdRef.current);
+      if (intervalIdRef.current) {
+        console.log('🛑 Clearing interval on leave:', intervalIdRef.current);
+        clearInterval(intervalIdRef.current);
+        intervalIdRef.current = null;
       }
     };
+
+    // Cleanup on unmount
+    useEffect(() => {
+      return () => {
+        console.log('🧹 Component cleanup, clearing interval:', intervalIdRef.current);
+        if (intervalIdRef.current) {
+          clearInterval(intervalIdRef.current);
+        }
+      };
+    }, []);
 
     return (
       <button
