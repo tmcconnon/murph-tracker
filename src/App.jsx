@@ -283,69 +283,51 @@ const MurphTracker = () => {
     }
   };
 
-  // Accelerated Button Component
-  const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
+  // Accelerated Button Component - Memoized to prevent re-renders
+  const AcceleratedButton = React.memo(({ onAction, children, className, disabled = false }) => {
     const intervalIdRef = useRef(null);
-    const componentIdRef = useRef(Math.random()); // Track component identity
-
-    console.log('🔄 AcceleratedButton render, component ID:', componentIdRef.current);
 
     const handleMouseDown = (e) => {
       e.preventDefault();
-      console.log('Mouse down event fired, component ID:', componentIdRef.current); 
-      console.log('Current ref value at mouse down:', intervalIdRef.current);
+      console.log('Mouse down - starting interval');
       
       if (!disabled) {
         // Clear any existing interval
         if (intervalIdRef.current) {
-          console.log('Clearing existing interval:', intervalIdRef.current);
           clearInterval(intervalIdRef.current);
           intervalIdRef.current = null;
         }
         
         // Fire immediately
-        console.log('Firing immediate action');
         onAction();
         triggerHapticFeedback('light');
         
         // Create interval
-        console.log('Creating interval...');
         const intervalId = setInterval(() => {
-          console.log('🔥 INTERVAL FIRING! ID:', intervalId, 'Ref value:', intervalIdRef.current);
+          console.log('🔥 Interval firing');
           onAction();
           triggerHapticFeedback('light');
         }, 200);
         
         intervalIdRef.current = intervalId;
-        console.log('✅ Interval created and stored in ref. ID:', intervalId, 'Ref value:', intervalIdRef.current);
-        
-        // Test if ref persists
-        setTimeout(() => {
-          console.log('🕐 After 50ms, ref value is:', intervalIdRef.current, 'Original ID was:', intervalId);
-        }, 50);
+        console.log('✅ Interval created:', intervalId);
       }
     };
 
     const handleMouseUp = (e) => {
       e.preventDefault();
-      console.log('Mouse up event fired, component ID:', componentIdRef.current);
-      console.log('Mouse up - Current ref value:', intervalIdRef.current);
+      console.log('Mouse up - clearing interval:', intervalIdRef.current);
       
       if (intervalIdRef.current) {
-        console.log('🛑 Clearing interval from ref:', intervalIdRef.current);
         clearInterval(intervalIdRef.current);
         intervalIdRef.current = null;
-        console.log('Interval cleared and ref set to null');
-      } else {
-        console.log('❌ No interval in ref to clear');
+        console.log('✅ Interval cleared');
       }
     };
 
     const handleMouseLeave = (e) => {
-      console.log('Mouse leave event fired, component ID:', componentIdRef.current);
-      console.log('Mouse leave - Current ref value:', intervalIdRef.current);
+      console.log('Mouse leave - clearing interval:', intervalIdRef.current);
       if (intervalIdRef.current) {
-        console.log('🛑 Clearing interval on leave:', intervalIdRef.current);
         clearInterval(intervalIdRef.current);
         intervalIdRef.current = null;
       }
@@ -354,7 +336,6 @@ const MurphTracker = () => {
     // Cleanup on unmount
     useEffect(() => {
       return () => {
-        console.log('🧹 Component cleanup, clearing interval:', intervalIdRef.current);
         if (intervalIdRef.current) {
           clearInterval(intervalIdRef.current);
         }
@@ -384,7 +365,7 @@ const MurphTracker = () => {
         </span>
       </button>
     );
-  };
+  });
 
   // Hamburger Menu
   const HamburgerMenu = () => (
