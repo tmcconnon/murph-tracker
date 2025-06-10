@@ -320,9 +320,20 @@ const MurphTracker = () => {
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
         disabled={disabled}
-        style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+        style={{ 
+          userSelect: 'none', 
+          WebkitUserSelect: 'none',
+          WebkitTouchCallout: 'none',
+          WebkitTapHighlightColor: 'transparent'
+        }}
       >
-        {children}
+        <span style={{ 
+          userSelect: 'none', 
+          WebkitUserSelect: 'none',
+          pointerEvents: 'none'
+        }}>
+          {children}
+        </span>
       </button>
     );
   };
