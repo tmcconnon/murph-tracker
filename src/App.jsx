@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, CheckCircle, ChevronLeft, ChevronRight, History, Trash2, Trophy, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Play, Pause, RotateCcw, CheckCircle, ChevronLeft, ChevronRight, History, Trash2, Trophy, Menu, X, Heart } from 'lucide-react';
 
 const MurphTracker = () => {
-  const [screen, setScreen] = useState('setup'); // 'setup', 'ready', 'workout', 'complete', 'history'
+  const [screen, setScreen] = useState('setup'); // 'setup', 'ready', 'workout', 'complete', 'history', 'about'
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState({ workoutId: null, step: 'initial' }); // 'initial', 'confirm'
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showMenu, setShowMenu] = useState(false);
   const [currentStep, setCurrentStep] = useState(1); // 1, 2, 3
-  const [celebrationActive, setCelebrationActive] = useState(false);
   const [workoutHistory, setWorkoutHistory] = useState([]);
-  const audioContextRef = useRef(null);
   const [workoutState, setWorkoutState] = useState({
     phase: 'run1', // 'run1', 'bodyweight', 'run2'
     isRunning: false,
@@ -50,45 +49,30 @@ const MurphTracker = () => {
     return () => clearInterval(interval);
   }, [workoutState.isRunning]);
 
-  // Sound functions
-  const createBeepSound = (frequency = 800, duration = 200) => {
+  // Haptic feedback functions
+  const triggerHapticFeedback = (pattern = 'light') => {
     try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      if ('vibrate' in navigator) {
+        switch(pattern) {
+          case 'light':
+            navigator.vibrate(50);
+            break;
+          case 'medium':
+            navigator.vibrate(100);
+            break;
+          case 'success':
+            navigator.vibrate([100, 50, 100]);
+            break;
+          case 'celebration':
+            navigator.vibrate([200, 100, 200, 100, 200]);
+            break;
+          default:
+            navigator.vibrate(50);
+        }
       }
-      
-      const oscillator = audioContextRef.current.createOscillator();
-      const gainNode = audioContextRef.current.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContextRef.current.destination);
-      
-      oscillator.frequency.value = frequency;
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + duration / 1000);
-      
-      oscillator.start(audioContextRef.current.currentTime);
-      oscillator.stop(audioContextRef.current.currentTime + duration / 1000);
     } catch (error) {
-      console.log('Audio not available');
+      console.log('Haptic feedback not available');
     }
-  };
-
-  const playCompletionSound = () => {
-    // Play a pleasant completion chime
-    setTimeout(() => createBeepSound(523, 150), 0);   // C5
-    setTimeout(() => createBeepSound(659, 150), 150); // E5
-    setTimeout(() => createBeepSound(784, 300), 300); // G5
-  };
-
-  const playCelebrationSound = () => {
-    // Play a victory fanfare
-    setTimeout(() => createBeepSound(523, 200), 0);   // C5
-    setTimeout(() => createBeepSound(659, 200), 200); // E5
-    setTimeout(() => createBeepSound(784, 200), 400); // G5
-    setTimeout(() => createBeepSound(1047, 400), 600); // C6
   };
 
   const formatTime = (seconds) => {
@@ -121,7 +105,7 @@ const MurphTracker = () => {
 
   const deleteWorkout = (workoutId) => {
     setWorkoutHistory(prev => prev.filter(w => w.id !== workoutId));
-    setShowDeleteConfirm({ workoutId: null, step: 'initial' });
+    setShowDeleteConfirm(null);
   };
 
   const startWorkout = () => {
@@ -151,7 +135,6 @@ const MurphTracker = () => {
       currentReps: 0
     });
     setCompletedReps({ pullups: 0, pushups: 0, squats: 0 });
-    setCelebrationActive(false);
     setScreen('setup');
     setCurrentStep(1);
     setShowResetConfirm(false);
@@ -161,8 +144,8 @@ const MurphTracker = () => {
     const movement = workoutState.currentMovement;
     const repsToAdd = customPartition[movement];
     
-    // Play completion sound
-    playCompletionSound();
+    // Trigger haptic feedback
+    triggerHapticFeedback('success');
     
     setCompletedReps(prev => ({
       ...prev,
@@ -188,8 +171,7 @@ const MurphTracker = () => {
         } else {
           setWorkoutState(prev => ({ ...prev, isRunning: false }));
           saveWorkout();
-          setCelebrationActive(true);
-          playCelebrationSound();
+          triggerHapticFeedback('celebration');
           setScreen('complete');
         }
       }
@@ -197,15 +179,14 @@ const MurphTracker = () => {
   };
 
   const completeRun = () => {
-    playCompletionSound();
+    triggerHapticFeedback('success');
     
     if (workoutState.phase === 'run1') {
       setWorkoutState(prev => ({ ...prev, phase: 'bodyweight' }));
     } else if (workoutState.phase === 'run2') {
       setWorkoutState(prev => ({ ...prev, isRunning: false }));
       saveWorkout();
-      setCelebrationActive(true);
-      playCelebrationSound();
+      triggerHapticFeedback('celebration');
       setScreen('complete');
     }
   };
@@ -249,11 +230,146 @@ const MurphTracker = () => {
     }
   };
 
-  // Setup Screen // force update
+  // Hamburger Menu
+  const HamburgerMenu = () => (
+    <>
+      {/* Menu Button */}
+      <button
+        onClick={() => setShowMenu(true)}
+        className="fixed top-4 left-4 z-40 bg-gray-800 hover:bg-gray-700 rounded-lg p-3 transition-colors"
+      >
+        <Menu size={24} className="text-white" />
+      </button>
+
+      {/* Menu Overlay */}
+      {showMenu && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex">
+          <div className="bg-gray-800 w-80 h-full p-6 overflow-y-auto">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-bold text-white">MURPH Tracker</h2>
+              <button
+                onClick={() => setShowMenu(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <nav className="space-y-4">
+              <button
+                onClick={() => {
+                  setScreen('setup');
+                  setCurrentStep(1);
+                  setShowMenu(false);
+                }}
+                className="w-full text-left bg-blue-600 hover:bg-blue-500 rounded-lg p-4 text-white font-semibold transition-colors flex items-center gap-3"
+              >
+                <Play size={20} />
+                Start MURPH
+              </button>
+
+              <button
+                onClick={() => {
+                  setScreen('history');
+                  setShowMenu(false);
+                }}
+                className="w-full text-left bg-gray-700 hover:bg-gray-600 rounded-lg p-4 text-white font-semibold transition-colors flex items-center gap-3"
+              >
+                <History size={20} />
+                Workout History
+              </button>
+
+              <button
+                onClick={() => {
+                  setScreen('about');
+                  setShowMenu(false);
+                }}
+                className="w-full text-left bg-gray-700 hover:bg-gray-600 rounded-lg p-4 text-white font-semibold transition-colors flex items-center gap-3"
+              >
+                <Heart size={20} />
+                About MURPH
+              </button>
+            </nav>
+          </div>
+          
+          {/* Close overlay when clicking outside */}
+          <div 
+            className="flex-1"
+            onClick={() => setShowMenu(false)}
+          />
+        </div>
+      )}
+    </>
+  );
+
+  // About Screen
+  if (screen === 'about') {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4">
+        <HamburgerMenu />
+        <div className="max-w-2xl mx-auto pt-16">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-blue-400 mb-4">About MURPH</h1>
+            <p className="text-xl text-gray-300">In Honor of Lt. Michael Murphy</p>
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h2 className="text-2xl font-bold mb-4 text-blue-400">The Hero</h2>
+              <p className="text-gray-300 mb-4">
+                Lieutenant Michael Patrick Murphy was a United States Navy SEAL who was awarded the U.S. military's highest decoration, the Medal of Honor, for his actions during the War in Afghanistan. Born on May 7, 1976, in Smithtown, New York, Murphy was known for his leadership, courage, and unwavering dedication to his fellow SEALs.
+              </p>
+              <p className="text-gray-300">
+                On June 28, 2005, during Operation Red Wings, Lt. Murphy and his team were ambushed by Taliban forces in the mountains of Afghanistan. Despite being severely outnumbered, Murphy moved into the open to get satellite phone reception and call for help, knowing it would likely cost him his life. His final act saved the lives of his remaining teammates.
+              </p>
+            </div>
+
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h2 className="text-2xl font-bold mb-4 text-blue-400">The Workout</h2>
+              <p className="text-gray-300 mb-4">
+                "MURPH" was Lt. Murphy's favorite workout, which he called "Body Armor." The workout consists of:
+              </p>
+              <ul className="text-gray-300 mb-4 space-y-2">
+                <li>• 1 mile run</li>
+                <li>• 100 pull-ups</li>
+                <li>• 200 push-ups</li>
+                <li>• 300 squats</li>
+                <li>• 1 mile run</li>
+                <li>• All while wearing a 20lb weighted vest (if possible)</li>
+              </ul>
+              <p className="text-gray-300">
+                This challenging workout has become a Memorial Day tradition in CrossFit gyms worldwide, honoring not just Lt. Murphy, but all fallen heroes who made the ultimate sacrifice for their country.
+              </p>
+            </div>
+
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h2 className="text-2xl font-bold mb-4 text-blue-400">The Legacy</h2>
+              <p className="text-gray-300 mb-4">
+                Every time someone completes MURPH, they're participating in something much bigger than a workout. They're honoring the memory of a true American hero and the values he stood for: courage, commitment, and sacrifice.
+              </p>
+              <p className="text-gray-300">
+                Lt. Murphy's favorite quote was "Education will set you free," and he believed in leading by example. Today, the MURPH workout serves as a reminder of his legacy and the price of freedom.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <p className="text-lg font-semibold text-blue-400 mb-2">
+                "I will never quit. My nation expects me to be physically harder and mentally stronger than my enemies."
+              </p>
+              <p className="text-gray-400">- Navy SEAL Creed</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Setup Screen
   if (screen === 'setup') {
     return (
       <div className="min-h-screen bg-gray-900 text-white p-4">
-        <div className="max-w-md mx-auto">
+        <HamburgerMenu />
+        <div className="max-w-md mx-auto pt-16">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-blue-400 mb-2">MURPH Tracker</h1>
             <p className="text-lg text-gray-300 mb-1">Build & track your MURPH workouts</p>
@@ -320,12 +436,21 @@ const MurphTracker = () => {
               {canProceedFromStep(1) && (
                 <button 
                   onClick={() => setCurrentStep(2)}
-                  className="w-full bg-green-600 hover:bg-green-500 rounded-lg p-4 font-semibold text-lg transition-colors flex items-center justify-center gap-2"
+                  className="w-full bg-green-600 hover:bg-green-500 rounded-lg p-4 font-semibold text-lg transition-colors flex items-center justify-center gap-2 mb-6"
                 >
                   Next: Choose Your Reps & Sets
                   <ChevronRight size={20} />
                 </button>
               )}
+
+              {/* Workout History Button */}
+              <button 
+                onClick={() => setScreen('history')}
+                className="w-full bg-gray-700 hover:bg-gray-600 rounded-lg p-4 font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                <History size={20} />
+                View Workout History ({workoutHistory.length})
+              </button>
             </>
           )}
 
@@ -587,15 +712,6 @@ const MurphTracker = () => {
                   </button>
                 )}
               </div>
-              
-              {/* History Button */}
-              <button 
-                onClick={() => setScreen('history')}
-                className="w-full mt-4 bg-gray-700 hover:bg-gray-600 rounded-lg p-4 font-semibold transition-colors flex items-center justify-center gap-2"
-              >
-                <History size={20} />
-                View Workout History ({workoutHistory.length})
-              </button>
             </>
           )}
         </div>
@@ -607,7 +723,8 @@ const MurphTracker = () => {
   if (screen === 'history') {
     return (
       <div className="min-h-screen bg-gray-900 text-white p-4">
-        <div className="max-w-md mx-auto">
+        <HamburgerMenu />
+        <div className="max-w-md mx-auto pt-16">
           <div className="text-center mb-6">
             <h1 className="text-3xl font-bold text-blue-400 mb-2">Workout History</h1>
             <p className="text-gray-300">{workoutHistory.length} completed MURPHs</p>
@@ -635,7 +752,7 @@ const MurphTracker = () => {
                         </div>
                       </div>
                       <button
-                        onClick={() => setShowDeleteConfirm({ workoutId: workout.id, step: 'initial' })}
+                        onClick={() => setShowDeleteConfirm(workout.id)}
                         className="text-red-400 hover:text-red-300 p-1"
                         title="Delete workout"
                       >
@@ -671,55 +788,28 @@ const MurphTracker = () => {
             </div>
           )}
 
-          <button 
-            onClick={() => setScreen('setup')}
-            className="w-full bg-blue-600 hover:bg-blue-500 rounded-lg p-4 font-semibold transition-colors flex items-center justify-center gap-2"
-          >
-            <ChevronLeft size={20} />
-            Back to Setup
-          </button>
-
           {/* Delete Confirmation Modal */}
-          {showDeleteConfirm.workoutId && (
+          {showDeleteConfirm && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
               <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full">
                 <h3 className="text-lg font-bold mb-3">Delete Workout?</h3>
                 <p className="text-gray-300 mb-6">
                   This will permanently delete this workout from your history. This action cannot be undone.
                 </p>
-                <div className="flex gap-3 mb-3">
+                <div className="flex gap-3">
                   <button 
-                    onClick={() => setShowDeleteConfirm({ workoutId: null, step: 'initial' })}
+                    onClick={() => setShowDeleteConfirm(null)}
                     className="flex-1 bg-gray-700 hover:bg-gray-600 rounded-lg p-3 font-semibold transition-colors"
                   >
                     Cancel
                   </button>
                   <button 
-                    onClick={() => setShowDeleteConfirm(prev => ({ ...prev, step: 'confirm' }))}
+                    onClick={() => deleteWorkout(showDeleteConfirm)}
                     className="flex-1 bg-red-600 hover:bg-red-500 rounded-lg p-3 font-semibold transition-colors"
                   >
                     Delete
                   </button>
                 </div>
-                {showDeleteConfirm.step === 'confirm' && (
-                  <div className="pt-3 border-t border-gray-600">
-                    <p className="text-sm text-gray-400 mb-3">Are you absolutely sure? Click "Confirm Delete" to proceed.</p>
-                    <div className="flex gap-3">
-                      <button 
-                        onClick={() => setShowDeleteConfirm({ workoutId: null, step: 'initial' })}
-                        className="flex-1 bg-gray-700 hover:bg-gray-600 rounded-lg p-2 text-sm font-semibold transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button 
-                        onClick={() => deleteWorkout(showDeleteConfirm.workoutId)}
-                        className="flex-1 bg-red-600 hover:bg-red-500 rounded-lg p-2 text-sm font-semibold transition-colors"
-                      >
-                        Confirm Delete
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -734,7 +824,8 @@ const MurphTracker = () => {
     
     return (
       <div className="min-h-screen bg-gray-900 text-white p-4">
-        <div className="max-w-md mx-auto">
+        <HamburgerMenu />
+        <div className="max-w-md mx-auto pt-16">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-blue-400 mb-2">Get Ready!</h1>
             <p className="text-gray-300">Review your workout and prepare to start</p>
@@ -831,7 +922,8 @@ const MurphTracker = () => {
   if (screen === 'workout') {
     return (
       <div className="min-h-screen bg-gray-900 text-white p-4">
-        <div className="max-w-md mx-auto">
+        <HamburgerMenu />
+        <div className="max-w-md mx-auto pt-16">
           {/* Header */}
           <div className="text-center mb-6">
             <div className="text-3xl font-bold text-blue-400 mb-1">{formatTime(workoutState.totalTime)}</div>
@@ -947,55 +1039,17 @@ const MurphTracker = () => {
   // Completion Screen
   if (screen === 'complete') {
     return (
-      <div className={`min-h-screen bg-gray-900 text-white p-4 relative overflow-hidden ${celebrationActive ? 'animate-pulse' : ''}`}>
-        {/* Celebration Effects */}
-        {celebrationActive && (
-          <>
-            {/* Floating Stars */}
-            {[...Array(12)].map((_, i) => (
-              <Star 
-                key={i}
-                size={Math.random() * 20 + 10}
-                className={`absolute text-yellow-400 animate-bounce`}
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                  animationDelay: `${Math.random() * 2}s`,
-                  animationDuration: `${Math.random() * 1 + 1.5}s`
-                }}
-              />
-            ))}
-            
-            {/* Gradient overlay for celebration */}
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-900/20 via-purple-900/20 to-green-900/20 animate-pulse"></div>
-          </>
-        )}
-        
-        <div className="max-w-md mx-auto text-center relative z-10">
+      <div className="min-h-screen bg-gray-900 text-white p-4">
+        <HamburgerMenu />
+        <div className="max-w-md mx-auto text-center pt-16">
           <div className="mb-8">
-            <div className={`inline-block ${celebrationActive ? 'animate-bounce' : ''}`}>
-              <CheckCircle size={80} className="mx-auto text-green-500 mb-4" />
-            </div>
-            <h1 className={`text-3xl font-bold mb-2 ${celebrationActive ? 'text-yellow-300' : ''}`}>
-              🎉 MURPH COMPLETE! 🎉
-            </h1>
+            <CheckCircle size={80} className="mx-auto text-green-500 mb-4" />
+            <h1 className="text-3xl font-bold mb-2">Murph Complete!</h1>
             <p className="text-gray-300">In honor of Lt. Michael Murphy</p>
-            {celebrationActive && (
-              <div className="mt-4">
-                <div className="text-lg font-semibold text-yellow-300 animate-pulse">
-                  🏆 OUTSTANDING WORK! 🏆
-                </div>
-                <div className="text-sm text-gray-300 mt-2">
-                  You've joined the ranks of warriors who honor Lt. Murphy's sacrifice
-                </div>
-              </div>
-            )}
           </div>
 
-          <div className={`bg-gray-800 rounded-lg p-6 mb-6 ${celebrationActive ? 'ring-2 ring-yellow-400 shadow-lg shadow-yellow-400/25' : ''}`}>
-            <div className={`text-4xl font-bold mb-2 ${celebrationActive ? 'text-yellow-300' : 'text-blue-400'}`}>
-              {formatTime(workoutState.totalTime)}
-            </div>
+          <div className="bg-gray-800 rounded-lg p-6 mb-6">
+            <div className="text-4xl font-bold text-blue-400 mb-2">{formatTime(workoutState.totalTime)}</div>
             <div className="text-gray-300 mb-4">Total Time</div>
             
             <div className="grid grid-cols-3 gap-4 text-center mb-4">
@@ -1037,15 +1091,6 @@ const MurphTracker = () => {
               History
             </button>
           </div>
-          
-          {celebrationActive && (
-            <button 
-              onClick={() => setCelebrationActive(false)}
-              className="w-full bg-gray-600 hover:bg-gray-500 rounded-lg p-2 text-sm font-semibold transition-colors"
-            >
-              Turn off celebration effects
-            </button>
-          )}
         </div>
       </div>
     );
