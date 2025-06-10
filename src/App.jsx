@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, RotateCcw, CheckCircle, ChevronLeft, ChevronRight, History, Trash2, Trophy, Menu, X, Heart } from 'lucide-react';
 
 const MurphTracker = () => {
@@ -73,6 +73,60 @@ const MurphTracker = () => {
     } catch (error) {
       console.log('Haptic feedback not available');
     }
+  };
+
+  // Accelerated counter hook
+  const useAcceleratedCounter = () => {
+    const timeoutRef = useRef(null);
+    const intervalRef = useRef(null);
+    const speedRef = useRef(200); // Start at 200ms intervals
+
+    const startCounter = useCallback((action) => {
+      // Clear any existing timeouts/intervals
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      
+      // Reset speed
+      speedRef.current = 200;
+      
+      // Initial action
+      action();
+      triggerHapticFeedback('light');
+      
+      // Start incrementing after 300ms delay
+      timeoutRef.current = setTimeout(() => {
+        intervalRef.current = setInterval(() => {
+          action();
+          triggerHapticFeedback('light');
+          
+          // Accelerate (decrease interval) every few increments, but cap at 50ms
+          speedRef.current = Math.max(50, speedRef.current * 0.92);
+          
+          // Update interval speed
+          clearInterval(intervalRef.current);
+          intervalRef.current = setInterval(() => {
+            action();
+            triggerHapticFeedback('light');
+          }, speedRef.current);
+        }, speedRef.current);
+      }, 300);
+    }, []);
+
+    const stopCounter = useCallback(() => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      speedRef.current = 200; // Reset speed
+    }, []);
+
+    // Cleanup on unmount
+    useEffect(() => {
+      return () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      };
+    }, []);
+
+    return { startCounter, stopCounter };
   };
 
   const formatTime = (seconds) => {
@@ -228,6 +282,49 @@ const MurphTracker = () => {
       case 3: return customPartition.useVest !== null;
       default: return false;
     }
+  };
+
+  // Accelerated Button Component
+  const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
+    const { startCounter, stopCounter } = useAcceleratedCounter();
+
+    const handleMouseDown = () => {
+      if (!disabled) {
+        startCounter(onAction);
+      }
+    };
+
+    const handleMouseUp = () => {
+      stopCounter();
+    };
+
+    const handleTouchStart = (e) => {
+      e.preventDefault(); // Prevent mouse events from firing
+      if (!disabled) {
+        startCounter(onAction);
+      }
+    };
+
+    const handleTouchEnd = (e) => {
+      e.preventDefault();
+      stopCounter();
+    };
+
+    return (
+      <button
+        className={className}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        disabled={disabled}
+        style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+      >
+        {children}
+      </button>
+    );
   };
 
   // Hamburger Menu
@@ -401,21 +498,21 @@ const MurphTracker = () => {
                     <div className="text-center">
                       <label className="block text-sm text-gray-300 mb-3">Distance (miles)</label>
                       <div className="flex items-center justify-center gap-3">
-                        <button 
-                          onClick={() => setCustomPartition(prev => ({ ...prev, runDistance: Math.max(0.1, prev.runDistance - 0.1) }))}
+                        <AcceleratedButton
+                          onAction={() => setCustomPartition(prev => ({ ...prev, runDistance: Math.max(0.1, prev.runDistance - 0.1) }))}
                           className="bg-gray-600 hover:bg-gray-500 rounded-lg p-3 font-bold text-lg transition-colors min-w-[50px]"
                         >
                           −
-                        </button>
+                        </AcceleratedButton>
                         <div className="bg-gray-700 rounded-lg p-3 text-center font-semibold text-lg min-w-[80px]">
                           {customPartition.runDistance.toFixed(1)}
                         </div>
-                        <button 
-                          onClick={() => setCustomPartition(prev => ({ ...prev, runDistance: prev.runDistance + 0.1 }))}
+                        <AcceleratedButton
+                          onAction={() => setCustomPartition(prev => ({ ...prev, runDistance: prev.runDistance + 0.1 }))}
                           className="bg-gray-600 hover:bg-gray-500 rounded-lg p-3 font-bold text-lg transition-colors min-w-[50px]"
                         >
                           +
-                        </button>
+                        </AcceleratedButton>
                       </div>
                     </div>
                   )}
@@ -513,21 +610,21 @@ const MurphTracker = () => {
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Rounds</span>
                           <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => setCustomPartition(prev => ({ ...prev, rounds: Math.max(1, prev.rounds - 1) }))}
+                            <AcceleratedButton
+                              onAction={() => setCustomPartition(prev => ({ ...prev, rounds: Math.max(1, prev.rounds - 1) }))}
                               className="bg-blue-600 hover:bg-blue-500 rounded-lg p-2 font-bold transition-colors w-[36px] h-[36px] flex items-center justify-center"
                             >
                               −
-                            </button>
+                            </AcceleratedButton>
                             <div className="bg-blue-900 rounded-lg text-center font-semibold w-[72px] h-[36px] flex items-center justify-center font-mono">
                               {customPartition.rounds}
                             </div>
-                            <button 
-                              onClick={() => setCustomPartition(prev => ({ ...prev, rounds: prev.rounds + 1 }))}
+                            <AcceleratedButton
+                              onAction={() => setCustomPartition(prev => ({ ...prev, rounds: prev.rounds + 1 }))}
                               className="bg-blue-600 hover:bg-blue-500 rounded-lg p-2 font-bold transition-colors w-[36px] h-[36px] flex items-center justify-center"
                             >
                               +
-                            </button>
+                            </AcceleratedButton>
                           </div>
                         </div>
 
@@ -535,21 +632,21 @@ const MurphTracker = () => {
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Pull-ups per round</span>
                           <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => setCustomPartition(prev => ({ ...prev, pullups: Math.max(0, prev.pullups - 1) }))}
+                            <AcceleratedButton
+                              onAction={() => setCustomPartition(prev => ({ ...prev, pullups: Math.max(0, prev.pullups - 1) }))}
                               className="bg-blue-600 hover:bg-blue-500 rounded-lg p-2 font-bold transition-colors w-[36px] h-[36px] flex items-center justify-center"
                             >
                               −
-                            </button>
+                            </AcceleratedButton>
                             <div className="bg-blue-900 rounded-lg text-center font-semibold w-[72px] h-[36px] flex items-center justify-center font-mono">
                               {customPartition.pullups}
                             </div>
-                            <button 
-                              onClick={() => setCustomPartition(prev => ({ ...prev, pullups: prev.pullups + 1 }))}
+                            <AcceleratedButton
+                              onAction={() => setCustomPartition(prev => ({ ...prev, pullups: prev.pullups + 1 }))}
                               className="bg-blue-600 hover:bg-blue-500 rounded-lg p-2 font-bold transition-colors w-[36px] h-[36px] flex items-center justify-center"
                             >
                               +
-                            </button>
+                            </AcceleratedButton>
                           </div>
                         </div>
 
@@ -557,21 +654,21 @@ const MurphTracker = () => {
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Push-ups per round</span>
                           <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => setCustomPartition(prev => ({ ...prev, pushups: Math.max(0, prev.pushups - 1) }))}
+                            <AcceleratedButton
+                              onAction={() => setCustomPartition(prev => ({ ...prev, pushups: Math.max(0, prev.pushups - 1) }))}
                               className="bg-blue-600 hover:bg-blue-500 rounded-lg p-2 font-bold transition-colors w-[36px] h-[36px] flex items-center justify-center"
                             >
                               −
-                            </button>
+                            </AcceleratedButton>
                             <div className="bg-blue-900 rounded-lg text-center font-semibold w-[72px] h-[36px] flex items-center justify-center font-mono">
                               {customPartition.pushups}
                             </div>
-                            <button 
-                              onClick={() => setCustomPartition(prev => ({ ...prev, pushups: prev.pushups + 1 }))}
+                            <AcceleratedButton
+                              onAction={() => setCustomPartition(prev => ({ ...prev, pushups: prev.pushups + 1 }))}
                               className="bg-blue-600 hover:bg-blue-500 rounded-lg p-2 font-bold transition-colors w-[36px] h-[36px] flex items-center justify-center"
                             >
                               +
-                            </button>
+                            </AcceleratedButton>
                           </div>
                         </div>
 
@@ -579,21 +676,21 @@ const MurphTracker = () => {
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Squats per round</span>
                           <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => setCustomPartition(prev => ({ ...prev, squats: Math.max(0, prev.squats - 1) }))}
+                            <AcceleratedButton
+                              onAction={() => setCustomPartition(prev => ({ ...prev, squats: Math.max(0, prev.squats - 1) }))}
                               className="bg-blue-600 hover:bg-blue-500 rounded-lg p-2 font-bold transition-colors w-[36px] h-[36px] flex items-center justify-center"
                             >
                               −
-                            </button>
+                            </AcceleratedButton>
                             <div className="bg-blue-900 rounded-lg text-center font-semibold w-[72px] h-[36px] flex items-center justify-center font-mono">
                               {customPartition.squats}
                             </div>
-                            <button 
-                              onClick={() => setCustomPartition(prev => ({ ...prev, squats: prev.squats + 1 }))}
+                            <AcceleratedButton
+                              onAction={() => setCustomPartition(prev => ({ ...prev, squats: prev.squats + 1 }))}
                               className="bg-blue-600 hover:bg-blue-500 rounded-lg p-2 font-bold transition-colors w-[36px] h-[36px] flex items-center justify-center"
                             >
                               +
-                            </button>
+                            </AcceleratedButton>
                           </div>
                         </div>
 
@@ -653,21 +750,21 @@ const MurphTracker = () => {
                     <div className="text-center">
                       <label className="block text-sm text-gray-300 mb-3">Weight (lbs)</label>
                       <div className="flex items-center justify-center gap-3">
-                        <button 
-                          onClick={() => setCustomPartition(prev => ({ ...prev, vestWeight: Math.max(0, prev.vestWeight - 1) }))}
+                        <AcceleratedButton
+                          onAction={() => setCustomPartition(prev => ({ ...prev, vestWeight: Math.max(0, prev.vestWeight - 1) }))}
                           className="bg-gray-600 hover:bg-gray-500 rounded-lg p-3 font-bold text-lg transition-colors min-w-[50px]"
                         >
                           −
-                        </button>
+                        </AcceleratedButton>
                         <div className="bg-gray-700 rounded-lg p-3 text-center font-semibold text-lg min-w-[80px]">
                           {customPartition.vestWeight} lbs
                         </div>
-                        <button 
-                          onClick={() => setCustomPartition(prev => ({ ...prev, vestWeight: prev.vestWeight + 1 }))}
+                        <AcceleratedButton
+                          onAction={() => setCustomPartition(prev => ({ ...prev, vestWeight: prev.vestWeight + 1 }))}
                           className="bg-gray-600 hover:bg-gray-500 rounded-lg p-3 font-bold text-lg transition-colors min-w-[50px]"
                         >
                           +
-                        </button>
+                        </AcceleratedButton>
                       </div>
                     </div>
                   )}
