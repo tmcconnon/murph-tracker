@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Play, Pause, RotateCcw, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, Pause, RotateCcw, CheckCircle, ChevronLeft, ChevronRight, History, Trash2, Trophy, Star } from 'lucide-react';
 
 const MurphTracker = () => {
-  const [screen, setScreen] = useState('setup'); // 'setup', 'ready', 'workout', 'complete'
+  const [screen, setScreen] = useState('setup'); // 'setup', 'ready', 'workout', 'complete', 'history'
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState({ workoutId: null, step: 'initial' }); // 'initial', 'confirm'
   const [currentStep, setCurrentStep] = useState(1); // 1, 2, 3
+  const [celebrationActive, setCelebrationActive] = useState(false);
+  const [workoutHistory, setWorkoutHistory] = useState([]);
+  const audioContextRef = useRef(null);
   const [workoutState, setWorkoutState] = useState({
     phase: 'run1', // 'run1', 'bodyweight', 'run2'
     isRunning: false,
@@ -46,10 +50,78 @@ const MurphTracker = () => {
     return () => clearInterval(interval);
   }, [workoutState.isRunning]);
 
+  // Sound functions
+  const createBeepSound = (frequency = 800, duration = 200) => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      
+      const oscillator = audioContextRef.current.createOscillator();
+      const gainNode = audioContextRef.current.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContextRef.current.destination);
+      
+      oscillator.frequency.value = frequency;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + duration / 1000);
+      
+      oscillator.start(audioContextRef.current.currentTime);
+      oscillator.stop(audioContextRef.current.currentTime + duration / 1000);
+    } catch (error) {
+      console.log('Audio not available');
+    }
+  };
+
+  const playCompletionSound = () => {
+    // Play a pleasant completion chime
+    setTimeout(() => createBeepSound(523, 150), 0);   // C5
+    setTimeout(() => createBeepSound(659, 150), 150); // E5
+    setTimeout(() => createBeepSound(784, 300), 300); // G5
+  };
+
+  const playCelebrationSound = () => {
+    // Play a victory fanfare
+    setTimeout(() => createBeepSound(523, 200), 0);   // C5
+    setTimeout(() => createBeepSound(659, 200), 200); // E5
+    setTimeout(() => createBeepSound(784, 200), 400); // G5
+    setTimeout(() => createBeepSound(1047, 400), 600); // C6
+  };
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const saveWorkout = () => {
+    const workout = {
+      id: Date.now(),
+      date: new Date().toISOString(),
+      totalTime: workoutState.totalTime,
+      configuration: {
+        includeRun: customPartition.includeRun,
+        runDistance: customPartition.runDistance,
+        rounds: customPartition.rounds,
+        pullups: customPartition.pullups,
+        pushups: customPartition.pushups,
+        squats: customPartition.squats,
+        useVest: customPartition.useVest,
+        vestWeight: customPartition.vestWeight,
+        selectedBodyweight: customPartition.selectedBodyweight
+      },
+      completedReps: { ...completedReps }
+    };
+    
+    setWorkoutHistory(prev => [workout, ...prev]);
+  };
+
+  const deleteWorkout = (workoutId) => {
+    setWorkoutHistory(prev => prev.filter(w => w.id !== workoutId));
+    setShowDeleteConfirm({ workoutId: null, step: 'initial' });
   };
 
   const startWorkout = () => {
@@ -79,6 +151,7 @@ const MurphTracker = () => {
       currentReps: 0
     });
     setCompletedReps({ pullups: 0, pushups: 0, squats: 0 });
+    setCelebrationActive(false);
     setScreen('setup');
     setCurrentStep(1);
     setShowResetConfirm(false);
@@ -87,6 +160,9 @@ const MurphTracker = () => {
   const completeReps = () => {
     const movement = workoutState.currentMovement;
     const repsToAdd = customPartition[movement];
+    
+    // Play completion sound
+    playCompletionSound();
     
     setCompletedReps(prev => ({
       ...prev,
@@ -111,6 +187,9 @@ const MurphTracker = () => {
           setWorkoutState(prev => ({ ...prev, phase: 'run2' }));
         } else {
           setWorkoutState(prev => ({ ...prev, isRunning: false }));
+          saveWorkout();
+          setCelebrationActive(true);
+          playCelebrationSound();
           setScreen('complete');
         }
       }
@@ -118,10 +197,15 @@ const MurphTracker = () => {
   };
 
   const completeRun = () => {
+    playCompletionSound();
+    
     if (workoutState.phase === 'run1') {
       setWorkoutState(prev => ({ ...prev, phase: 'bodyweight' }));
     } else if (workoutState.phase === 'run2') {
       setWorkoutState(prev => ({ ...prev, isRunning: false }));
+      saveWorkout();
+      setCelebrationActive(true);
+      playCelebrationSound();
       setScreen('complete');
     }
   };
@@ -503,7 +587,141 @@ const MurphTracker = () => {
                   </button>
                 )}
               </div>
+              
+              {/* History Button */}
+              <button 
+                onClick={() => setScreen('history')}
+                className="w-full mt-4 bg-gray-700 hover:bg-gray-600 rounded-lg p-4 font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                <History size={20} />
+                View Workout History ({workoutHistory.length})
+              </button>
             </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // History Screen
+  if (screen === 'history') {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4">
+        <div className="max-w-md mx-auto">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-blue-400 mb-2">Workout History</h1>
+            <p className="text-gray-300">{workoutHistory.length} completed MURPHs</p>
+          </div>
+
+          {workoutHistory.length === 0 ? (
+            <div className="bg-gray-800 rounded-lg p-6 text-center">
+              <Trophy size={48} className="mx-auto text-gray-500 mb-4" />
+              <p className="text-gray-400 mb-4">No workouts completed yet</p>
+              <p className="text-sm text-gray-500">Complete your first MURPH to see it here!</p>
+            </div>
+          ) : (
+            <div className="space-y-4 mb-6">
+              {workoutHistory.map((workout) => {
+                const selectedPreset = presetPartitions.find(p => p.id === workout.configuration.selectedBodyweight);
+                const workoutDate = new Date(workout.date);
+                
+                return (
+                  <div key={workout.id} className="bg-gray-800 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <div className="text-lg font-bold text-blue-400">{formatTime(workout.totalTime)}</div>
+                        <div className="text-sm text-gray-400">
+                          {workoutDate.toLocaleDateString()} at {workoutDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowDeleteConfirm({ workoutId: workout.id, step: 'initial' })}
+                        className="text-red-400 hover:text-red-300 p-1"
+                        title="Delete workout"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    
+                    <div className="text-sm text-gray-300 mb-2">
+                      {workout.configuration.selectedBodyweight === 'custom' ? 
+                        `Custom: ${workout.configuration.rounds} rounds` :
+                        selectedPreset?.name || 'Cindy Style'}
+                      {workout.configuration.useVest && ` • ${workout.configuration.vestWeight}lb vest`}
+                      {workout.configuration.includeRun && ` • ${workout.configuration.runDistance.toFixed(1)}mi runs`}
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4 text-center text-xs">
+                      <div>
+                        <div className="font-semibold">{workout.completedReps.pullups}</div>
+                        <div className="text-gray-400">Pull-ups</div>
+                      </div>
+                      <div>
+                        <div className="font-semibold">{workout.completedReps.pushups}</div>
+                        <div className="text-gray-400">Push-ups</div>
+                      </div>
+                      <div>
+                        <div className="font-semibold">{workout.completedReps.squats}</div>
+                        <div className="text-gray-400">Squats</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <button 
+            onClick={() => setScreen('setup')}
+            className="w-full bg-blue-600 hover:bg-blue-500 rounded-lg p-4 font-semibold transition-colors flex items-center justify-center gap-2"
+          >
+            <ChevronLeft size={20} />
+            Back to Setup
+          </button>
+
+          {/* Delete Confirmation Modal */}
+          {showDeleteConfirm.workoutId && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full">
+                <h3 className="text-lg font-bold mb-3">Delete Workout?</h3>
+                <p className="text-gray-300 mb-6">
+                  This will permanently delete this workout from your history. This action cannot be undone.
+                </p>
+                <div className="flex gap-3 mb-3">
+                  <button 
+                    onClick={() => setShowDeleteConfirm({ workoutId: null, step: 'initial' })}
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 rounded-lg p-3 font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => setShowDeleteConfirm(prev => ({ ...prev, step: 'confirm' }))}
+                    className="flex-1 bg-red-600 hover:bg-red-500 rounded-lg p-3 font-semibold transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+                {showDeleteConfirm.step === 'confirm' && (
+                  <div className="pt-3 border-t border-gray-600">
+                    <p className="text-sm text-gray-400 mb-3">Are you absolutely sure? Click "Confirm Delete" to proceed.</p>
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={() => setShowDeleteConfirm({ workoutId: null, step: 'initial' })}
+                        className="flex-1 bg-gray-700 hover:bg-gray-600 rounded-lg p-2 text-sm font-semibold transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={() => deleteWorkout(showDeleteConfirm.workoutId)}
+                        className="flex-1 bg-red-600 hover:bg-red-500 rounded-lg p-2 text-sm font-semibold transition-colors"
+                      >
+                        Confirm Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -729,16 +947,55 @@ const MurphTracker = () => {
   // Completion Screen
   if (screen === 'complete') {
     return (
-      <div className="min-h-screen bg-gray-900 text-white p-4">
-        <div className="max-w-md mx-auto text-center">
+      <div className={`min-h-screen bg-gray-900 text-white p-4 relative overflow-hidden ${celebrationActive ? 'animate-pulse' : ''}`}>
+        {/* Celebration Effects */}
+        {celebrationActive && (
+          <>
+            {/* Floating Stars */}
+            {[...Array(12)].map((_, i) => (
+              <Star 
+                key={i}
+                size={Math.random() * 20 + 10}
+                className={`absolute text-yellow-400 animate-bounce`}
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 2}s`,
+                  animationDuration: `${Math.random() * 1 + 1.5}s`
+                }}
+              />
+            ))}
+            
+            {/* Gradient overlay for celebration */}
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-900/20 via-purple-900/20 to-green-900/20 animate-pulse"></div>
+          </>
+        )}
+        
+        <div className="max-w-md mx-auto text-center relative z-10">
           <div className="mb-8">
-            <CheckCircle size={80} className="mx-auto text-green-500 mb-4" />
-            <h1 className="text-3xl font-bold mb-2">Murph Complete!</h1>
+            <div className={`inline-block ${celebrationActive ? 'animate-bounce' : ''}`}>
+              <CheckCircle size={80} className="mx-auto text-green-500 mb-4" />
+            </div>
+            <h1 className={`text-3xl font-bold mb-2 ${celebrationActive ? 'text-yellow-300' : ''}`}>
+              🎉 MURPH COMPLETE! 🎉
+            </h1>
             <p className="text-gray-300">In honor of Lt. Michael Murphy</p>
+            {celebrationActive && (
+              <div className="mt-4">
+                <div className="text-lg font-semibold text-yellow-300 animate-pulse">
+                  🏆 OUTSTANDING WORK! 🏆
+                </div>
+                <div className="text-sm text-gray-300 mt-2">
+                  You've joined the ranks of warriors who honor Lt. Murphy's sacrifice
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="bg-gray-800 rounded-lg p-6 mb-6">
-            <div className="text-4xl font-bold text-blue-400 mb-2">{formatTime(workoutState.totalTime)}</div>
+          <div className={`bg-gray-800 rounded-lg p-6 mb-6 ${celebrationActive ? 'ring-2 ring-yellow-400 shadow-lg shadow-yellow-400/25' : ''}`}>
+            <div className={`text-4xl font-bold mb-2 ${celebrationActive ? 'text-yellow-300' : 'text-blue-400'}`}>
+              {formatTime(workoutState.totalTime)}
+            </div>
             <div className="text-gray-300 mb-4">Total Time</div>
             
             <div className="grid grid-cols-3 gap-4 text-center mb-4">
@@ -759,18 +1016,36 @@ const MurphTracker = () => {
             <div className="text-sm text-gray-400">
               {customPartition.selectedBodyweight === 'custom' ? 
                 `Custom: ${customPartition.rounds} rounds of ${customPartition.pullups}-${customPartition.pushups}-${customPartition.squats}` :
-                `${presetPartitions.find(p => p.id === customPartition.selectedBodyweight)?.name || 'Official MURPH'}`}
+                `${presetPartitions.find(p => p.id === customPartition.selectedBodyweight)?.name || 'Cindy Style'}`}
               {customPartition.useVest && ` • ${customPartition.vestWeight}lb vest`}
               {customPartition.includeRun && ` • ${customPartition.runDistance.toFixed(1)} mile runs`}
             </div>
           </div>
 
-          <button 
-            onClick={resetWorkout}
-            className="w-full bg-blue-600 hover:bg-blue-500 rounded-lg p-4 font-semibold text-lg transition-colors"
-          >
-            New Workout
-          </button>
+          <div className="flex gap-3 mb-4">
+            <button 
+              onClick={resetWorkout}
+              className="flex-1 bg-blue-600 hover:bg-blue-500 rounded-lg p-4 font-semibold text-lg transition-colors"
+            >
+              New Workout
+            </button>
+            <button 
+              onClick={() => setScreen('history')}
+              className="bg-gray-700 hover:bg-gray-600 rounded-lg p-4 font-semibold transition-colors flex items-center gap-2"
+            >
+              <History size={20} />
+              History
+            </button>
+          </div>
+          
+          {celebrationActive && (
+            <button 
+              onClick={() => setCelebrationActive(false)}
+              className="w-full bg-gray-600 hover:bg-gray-500 rounded-lg p-2 text-sm font-semibold transition-colors"
+            >
+              Turn off celebration effects
+            </button>
+          )}
         </div>
       </div>
     );
