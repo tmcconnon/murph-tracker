@@ -81,7 +81,9 @@ const MurphTracker = () => {
     const startTimeRef = useRef(null);
     const lastActionTimeRef = useRef(null);
 
-    const startCounter = useCallback((action) => {
+    const startCounter = (action) => {
+      console.log('startCounter called'); // Debug
+      
       // Clear any existing interval
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -116,6 +118,7 @@ const MurphTracker = () => {
         
         // Fire action if enough time has passed
         if (timeSinceLastAction >= requiredInterval) {
+          console.log('Firing action, elapsed:', totalElapsed); // Debug
           action();
           triggerHapticFeedback('light');
           lastActionTimeRef.current = now;
@@ -123,16 +126,17 @@ const MurphTracker = () => {
         
       }, 20); // Check every 20ms for smooth acceleration
       
-    }, []);
+    };
 
-    const stopCounter = useCallback(() => {
+    const stopCounter = () => {
+      console.log('stopCounter called'); // Debug
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
       startTimeRef.current = null;
       lastActionTimeRef.current = null;
-    }, []);
+    };
 
     // Cleanup on unmount
     useEffect(() => {
@@ -304,53 +308,38 @@ const MurphTracker = () => {
   // Accelerated Button Component
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
     const { startCounter, stopCounter } = useAcceleratedCounter();
-    const isHoldingRef = useRef(false);
 
-    const handleStart = useCallback(() => {
-      if (!disabled && !isHoldingRef.current) {
-        console.log('Starting counter'); // Debug log
-        isHoldingRef.current = true;
+    const handleMouseDown = (e) => {
+      e.preventDefault();
+      console.log('Mouse down event fired'); // Debug
+      if (!disabled) {
         startCounter(onAction);
       }
-    }, [onAction, startCounter, disabled]);
-
-    const handleStop = useCallback(() => {
-      if (isHoldingRef.current) {
-        console.log('Stopping counter'); // Debug log
-        isHoldingRef.current = false;
-        stopCounter();
-      }
-    }, [stopCounter]);
-
-    // Use a single event approach that works on both mobile and desktop
-    const handlePointerDown = (e) => {
-      e.preventDefault();
-      handleStart();
     };
 
-    const handlePointerUp = (e) => {
+    const handleMouseUp = (e) => {
       e.preventDefault();
-      handleStop();
+      console.log('Mouse up event fired'); // Debug
+      stopCounter();
     };
 
-    const handlePointerLeave = (e) => {
-      handleStop();
+    const handleMouseLeave = (e) => {
+      console.log('Mouse leave event fired'); // Debug
+      stopCounter();
     };
 
     return (
       <button
         className={className}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerLeave}
-        onPointerCancel={handleStop}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
         disabled={disabled}
         style={{ 
           userSelect: 'none', 
           WebkitUserSelect: 'none',
           WebkitTouchCallout: 'none',
-          WebkitTapHighlightColor: 'transparent',
-          touchAction: 'none'
+          WebkitTapHighlightColor: 'transparent'
         }}
       >
         <span style={{ 
