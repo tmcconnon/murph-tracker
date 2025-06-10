@@ -283,7 +283,7 @@ const MurphTracker = () => {
     }
   };
 
-  // Accelerated Button Component - With mobile touch support
+  // Accelerated Button Component - Improved mobile touch support
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
     
     const startAcceleration = (button) => {
@@ -336,24 +336,25 @@ const MurphTracker = () => {
       button._accelerationTimeout = setTimeout(accelerate, 1000);
     };
     
-    const stopAcceleration = (button) => {
-      console.log('Stopping acceleration');
+    const stopAcceleration = (button, source = 'unknown') => {
+      console.log('Stopping acceleration from:', source);
       
       if (button._intervalId) {
         clearInterval(button._intervalId);
         button._intervalId = null;
+        console.log('✅ Interval cleared');
       }
       if (button._accelerationTimeout) {
         clearTimeout(button._accelerationTimeout);
         button._accelerationTimeout = null;
+        console.log('✅ Timeout cleared');
       }
-      console.log('✅ Accelerated interval cleared');
     };
 
     // Mouse events (desktop)
     const handleMouseDown = (e) => {
       e.preventDefault();
-      console.log('Mouse down detected');
+      console.log('🖱️ Mouse down detected');
       
       if (!disabled) {
         const button = e.currentTarget;
@@ -361,7 +362,8 @@ const MurphTracker = () => {
         
         // Global mouse up listener
         const handleGlobalMouseUp = () => {
-          stopAcceleration(button);
+          console.log('🖱️ Global mouse up detected');
+          stopAcceleration(button, 'global mouse up');
           document.removeEventListener('mouseup', handleGlobalMouseUp);
           document.removeEventListener('mouseleave', handleGlobalMouseUp);
         };
@@ -374,39 +376,67 @@ const MurphTracker = () => {
     // Touch events (mobile)
     const handleTouchStart = (e) => {
       e.preventDefault();
-      console.log('Touch start detected');
+      console.log('📱 Touch start detected');
       
       if (!disabled) {
         const button = e.currentTarget;
         startAcceleration(button);
         
-        // Global touch end listener
-        const handleGlobalTouchEnd = () => {
-          stopAcceleration(button);
-          document.removeEventListener('touchend', handleGlobalTouchEnd);
-          document.removeEventListener('touchcancel', handleGlobalTouchEnd);
+        // Store global handlers so we can remove them
+        button._globalTouchEnd = () => {
+          console.log('📱 Global touch end detected');
+          stopAcceleration(button, 'global touch end');
+          document.removeEventListener('touchend', button._globalTouchEnd);
+          document.removeEventListener('touchcancel', button._globalTouchEnd);
+          document.removeEventListener('touchmove', button._globalTouchMove);
         };
         
-        document.addEventListener('touchend', handleGlobalTouchEnd);
-        document.addEventListener('touchcancel', handleGlobalTouchEnd);
+        button._globalTouchMove = (e) => {
+          // Check if touch moved outside the button
+          const touch = e.touches[0];
+          if (touch) {
+            const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (!button.contains(elementAtPoint)) {
+              console.log('📱 Touch moved outside button');
+              stopAcceleration(button, 'touch move outside');
+              document.removeEventListener('touchend', button._globalTouchEnd);
+              document.removeEventListener('touchcancel', button._globalTouchEnd);
+              document.removeEventListener('touchmove', button._globalTouchMove);
+            }
+          }
+        };
+        
+        document.addEventListener('touchend', button._globalTouchEnd);
+        document.addEventListener('touchcancel', button._globalTouchEnd);
+        document.addEventListener('touchmove', button._globalTouchMove);
       }
     };
 
     const handleMouseUp = (e) => {
       e.preventDefault();
+      console.log('🖱️ Local mouse up detected');
       const button = e.currentTarget;
-      stopAcceleration(button);
+      stopAcceleration(button, 'local mouse up');
     };
 
     const handleTouchEnd = (e) => {
       e.preventDefault();
+      console.log('📱 Local touch end detected');
       const button = e.currentTarget;
-      stopAcceleration(button);
+      stopAcceleration(button, 'local touch end');
+      
+      // Clean up global listeners
+      if (button._globalTouchEnd) {
+        document.removeEventListener('touchend', button._globalTouchEnd);
+        document.removeEventListener('touchcancel', button._globalTouchEnd);
+        document.removeEventListener('touchmove', button._globalTouchMove);
+      }
     };
 
     const handleMouseLeave = (e) => {
+      console.log('🖱️ Mouse leave detected');
       const button = e.currentTarget;
-      stopAcceleration(button);
+      stopAcceleration(button, 'mouse leave');
     };
 
     return (
