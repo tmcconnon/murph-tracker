@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, RotateCcw, CheckCircle, ChevronLeft, ChevronRight, History, Trash2, Trophy, Menu, X, Heart } from 'lucide-react';
 
-// Global interval storage outside component - this should be bulletproof
-const intervalStore = new Map();
-
 const MurphTracker = () => {
   const [screen, setScreen] = useState('setup'); // 'setup', 'ready', 'workout', 'complete', 'history', 'about'
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -286,87 +283,75 @@ const MurphTracker = () => {
     }
   };
 
-  // Accelerated Button Component - Using global Map storage
+  // Accelerated Button Component - Direct inline approach
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
-    const buttonId = useRef(`btn_${Math.random().toString(36).substr(2, 9)}`).current;
-
+    
     const handleMouseDown = (e) => {
       e.preventDefault();
-      console.log('Mouse down - starting interval, button ID:', buttonId);
+      console.log('Mouse down - starting direct interval');
       
       if (!disabled) {
-        // Clear any existing interval stored in Map
-        const existingInterval = intervalStore.get(buttonId);
-        if (existingInterval) {
-          clearInterval(existingInterval);
-          intervalStore.delete(buttonId);
-          console.log('Cleared existing interval');
-        }
-        
         // Fire immediately
         onAction();
         triggerHapticFeedback('light');
         
-        // Create interval
-        const intervalId = setInterval(() => {
-          console.log('🔥 Interval firing for button:', buttonId);
+        // Create interval and store it directly on the element
+        const button = e.currentTarget;
+        
+        // Clear any existing interval on this button
+        if (button._intervalId) {
+          clearInterval(button._intervalId);
+          console.log('Cleared existing interval:', button._intervalId);
+        }
+        
+        // Create new interval
+        button._intervalId = setInterval(() => {
+          console.log('🔥 Direct interval firing, ID:', button._intervalId);
           onAction();
           triggerHapticFeedback('light');
         }, 200);
         
-        // Store interval ID in global Map
-        intervalStore.set(buttonId, intervalId);
-        console.log('✅ Interval created and stored in Map:', intervalId, 'Button:', buttonId);
-        console.log('Map size:', intervalStore.size);
+        console.log('✅ Direct interval created:', button._intervalId);
         
-        // Verify it's stored
-        setTimeout(() => {
-          const stored = intervalStore.get(buttonId);
-          console.log('🔍 Verification - Map contains:', stored, 'Map size:', intervalStore.size);
-        }, 50);
+        // Add global mouse up listener to catch mouse up anywhere
+        const handleGlobalMouseUp = () => {
+          console.log('Global mouse up detected, button interval:', button._intervalId);
+          if (button._intervalId) {
+            clearInterval(button._intervalId);
+            button._intervalId = null;
+            console.log('✅ Direct interval cleared globally');
+          }
+          document.removeEventListener('mouseup', handleGlobalMouseUp);
+          document.removeEventListener('mouseleave', handleGlobalMouseUp);
+        };
+        
+        document.addEventListener('mouseup', handleGlobalMouseUp);
+        document.addEventListener('mouseleave', handleGlobalMouseUp);
       }
     };
 
     const handleMouseUp = (e) => {
       e.preventDefault();
+      const button = e.currentTarget;
+      console.log('Local mouse up, button interval:', button._intervalId);
       
-      const intervalId = intervalStore.get(buttonId);
-      console.log('Mouse up - checking Map for button:', buttonId, 'Found:', intervalId);
-      console.log('Current Map size:', intervalStore.size);
-      
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalStore.delete(buttonId);
-        console.log('✅ Interval cleared from Map');
-      } else {
-        console.log('❌ No interval found in Map for button:', buttonId);
-        // Debug: show all keys in Map
-        console.log('All Map keys:', Array.from(intervalStore.keys()));
+      if (button._intervalId) {
+        clearInterval(button._intervalId);
+        button._intervalId = null;
+        console.log('✅ Direct interval cleared locally');
       }
     };
 
     const handleMouseLeave = (e) => {
-      const intervalId = intervalStore.get(buttonId);
-      console.log('Mouse leave - checking Map:', intervalId);
+      const button = e.currentTarget;
+      console.log('Mouse leave, button interval:', button._intervalId);
       
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalStore.delete(buttonId);
-        console.log('✅ Interval cleared on leave');
+      if (button._intervalId) {
+        clearInterval(button._intervalId);
+        button._intervalId = null;
+        console.log('✅ Direct interval cleared on leave');
       }
     };
-
-    // Cleanup on unmount
-    useEffect(() => {
-      return () => {
-        const intervalId = intervalStore.get(buttonId);
-        if (intervalId) {
-          clearInterval(intervalId);
-          intervalStore.delete(buttonId);
-          console.log('🧹 Cleanup: cleared interval for', buttonId);
-        }
-      };
-    }, [buttonId]);
 
     return (
       <button
