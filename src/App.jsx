@@ -199,7 +199,7 @@ const MurphTracker = () => {
       pullups: 5, 
       pushups: 10, 
       squats: 15,
-      description: "Breaks things up to keep you fresh. Arguably the most popular and manageable pacing."
+      description: "Breaks things up to keep you fresh. The most popular and manageable pacing."
     },
     { 
       id: 'big',
