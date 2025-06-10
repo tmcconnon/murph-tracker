@@ -283,44 +283,85 @@ const MurphTracker = () => {
     }
   };
 
-  // Accelerated Button Component - Direct inline approach
+  // Accelerated Button Component - With mobile touch support
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
     
-    const handleMouseDown = (e) => {
-      e.preventDefault();
-      console.log('Mouse down - starting direct interval');
+    const startAcceleration = (button) => {
+      console.log('Starting acceleration');
       
-      if (!disabled) {
-        // Fire immediately
-        onAction();
-        triggerHapticFeedback('light');
-        
-        // Create interval and store it directly on the element
-        const button = e.currentTarget;
-        
-        // Clear any existing interval on this button
+      // Fire immediately
+      onAction();
+      triggerHapticFeedback('light');
+      
+      // Clear any existing timers
+      if (button._intervalId) {
+        clearInterval(button._intervalId);
+      }
+      if (button._accelerationTimeout) {
+        clearTimeout(button._accelerationTimeout);
+      }
+      
+      // Track start time and current speed
+      button._startTime = Date.now();
+      button._currentSpeed = 300; // Start slow
+      
+      // Create initial interval
+      const startInterval = (speed) => {
         if (button._intervalId) {
           clearInterval(button._intervalId);
-          console.log('Cleared existing interval:', button._intervalId);
         }
         
-        // Create new interval
         button._intervalId = setInterval(() => {
-          console.log('🔥 Direct interval firing, ID:', button._intervalId);
+          console.log('🔥 Accelerated interval firing, speed:', speed);
           onAction();
           triggerHapticFeedback('light');
-        }, 200);
+        }, speed);
+      };
+      
+      startInterval(button._currentSpeed);
+      console.log('✅ Accelerated interval created, initial speed:', button._currentSpeed);
+      
+      // Set up acceleration
+      const accelerate = () => {
+        button._currentSpeed = Math.max(50, button._currentSpeed - 50);
+        console.log('⚡ Accelerating to:', button._currentSpeed + 'ms');
         
-        console.log('✅ Direct interval created:', button._intervalId);
+        startInterval(button._currentSpeed);
         
-        // Add global mouse up listener to catch mouse up anywhere
+        if (button._currentSpeed > 50) {
+          button._accelerationTimeout = setTimeout(accelerate, 1000);
+        }
+      };
+      
+      button._accelerationTimeout = setTimeout(accelerate, 1000);
+    };
+    
+    const stopAcceleration = (button) => {
+      console.log('Stopping acceleration');
+      
+      if (button._intervalId) {
+        clearInterval(button._intervalId);
+        button._intervalId = null;
+      }
+      if (button._accelerationTimeout) {
+        clearTimeout(button._accelerationTimeout);
+        button._accelerationTimeout = null;
+      }
+      console.log('✅ Accelerated interval cleared');
+    };
+
+    // Mouse events (desktop)
+    const handleMouseDown = (e) => {
+      e.preventDefault();
+      console.log('Mouse down detected');
+      
+      if (!disabled) {
+        const button = e.currentTarget;
+        startAcceleration(button);
+        
+        // Global mouse up listener
         const handleGlobalMouseUp = () => {
-          console.log('Global mouse up detected, button interval:', button._intervalId);
-          if (button._intervalId) {
-            clearInterval(button._intervalId);
-            button._intervalId = null;
-            console.log('✅ Direct interval cleared globally');
-          }
+          stopAcceleration(button);
           document.removeEventListener('mouseup', handleGlobalMouseUp);
           document.removeEventListener('mouseleave', handleGlobalMouseUp);
         };
@@ -330,27 +371,42 @@ const MurphTracker = () => {
       }
     };
 
+    // Touch events (mobile)
+    const handleTouchStart = (e) => {
+      e.preventDefault();
+      console.log('Touch start detected');
+      
+      if (!disabled) {
+        const button = e.currentTarget;
+        startAcceleration(button);
+        
+        // Global touch end listener
+        const handleGlobalTouchEnd = () => {
+          stopAcceleration(button);
+          document.removeEventListener('touchend', handleGlobalTouchEnd);
+          document.removeEventListener('touchcancel', handleGlobalTouchEnd);
+        };
+        
+        document.addEventListener('touchend', handleGlobalTouchEnd);
+        document.addEventListener('touchcancel', handleGlobalTouchEnd);
+      }
+    };
+
     const handleMouseUp = (e) => {
       e.preventDefault();
       const button = e.currentTarget;
-      console.log('Local mouse up, button interval:', button._intervalId);
-      
-      if (button._intervalId) {
-        clearInterval(button._intervalId);
-        button._intervalId = null;
-        console.log('✅ Direct interval cleared locally');
-      }
+      stopAcceleration(button);
+    };
+
+    const handleTouchEnd = (e) => {
+      e.preventDefault();
+      const button = e.currentTarget;
+      stopAcceleration(button);
     };
 
     const handleMouseLeave = (e) => {
       const button = e.currentTarget;
-      console.log('Mouse leave, button interval:', button._intervalId);
-      
-      if (button._intervalId) {
-        clearInterval(button._intervalId);
-        button._intervalId = null;
-        console.log('✅ Direct interval cleared on leave');
-      }
+      stopAcceleration(button);
     };
 
     return (
@@ -359,12 +415,15 @@ const MurphTracker = () => {
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         disabled={disabled}
         style={{ 
           userSelect: 'none', 
           WebkitUserSelect: 'none',
           WebkitTouchCallout: 'none',
-          WebkitTapHighlightColor: 'transparent'
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'none' // Prevents scrolling on touch
         }}
       >
         <span style={{ 
