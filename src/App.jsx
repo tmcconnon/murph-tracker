@@ -290,50 +290,58 @@ const MurphTracker = () => {
     }
   };
 
-  // Accelerated Button Component - With on-screen debugging
+  // Accelerated Button Component - Fixed multiple interval issue
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
     
     const startAcceleration = (button) => {
-      debugLog('Starting acceleration');
+      debugLog('🟢 Starting acceleration');
+      
+      // FORCE clear any existing timers first
+      if (button._intervalId) {
+        clearInterval(button._intervalId);
+        debugLog('🧹 Cleared existing interval: ' + button._intervalId);
+      }
+      if (button._accelerationTimeout) {
+        clearTimeout(button._accelerationTimeout);
+        debugLog('🧹 Cleared existing timeout: ' + button._accelerationTimeout);
+      }
       
       // Fire immediately
       onAction();
       triggerHapticFeedback('light');
       
-      // Clear any existing timers
-      if (button._intervalId) {
-        clearInterval(button._intervalId);
-      }
-      if (button._accelerationTimeout) {
-        clearTimeout(button._accelerationTimeout);
-      }
-      
       // Track start time and current speed
       button._startTime = Date.now();
       button._currentSpeed = 300; // Start slow
       
-      // Create initial interval
-      const startInterval = (speed) => {
-        if (button._intervalId) {
-          clearInterval(button._intervalId);
-        }
-        
-        button._intervalId = setInterval(() => {
-          debugLog('🔥 Interval firing');
-          onAction();
-          triggerHapticFeedback('light');
-        }, speed);
-      };
+      // Create initial interval with unique tracking
+      button._intervalId = setInterval(() => {
+        debugLog('🔥 Interval ' + button._intervalId + ' firing');
+        onAction();
+        triggerHapticFeedback('light');
+      }, button._currentSpeed);
       
-      startInterval(button._currentSpeed);
-      debugLog('✅ Interval created: ' + button._currentSpeed + 'ms');
+      debugLog('✅ Created interval: ' + button._intervalId + ' at ' + button._currentSpeed + 'ms');
       
-      // Set up acceleration
+      // Set up acceleration with better cleanup
       const accelerate = () => {
         button._currentSpeed = Math.max(50, button._currentSpeed - 50);
         debugLog('⚡ Accelerating to: ' + button._currentSpeed + 'ms');
         
-        startInterval(button._currentSpeed);
+        // CRITICAL: Clear the old interval before creating new one
+        if (button._intervalId) {
+          clearInterval(button._intervalId);
+          debugLog('🧹 Cleared interval ' + button._intervalId + ' for acceleration');
+        }
+        
+        // Create new interval
+        button._intervalId = setInterval(() => {
+          debugLog('🔥 Interval ' + button._intervalId + ' firing (accelerated)');
+          onAction();
+          triggerHapticFeedback('light');
+        }, button._currentSpeed);
+        
+        debugLog('✅ Created accelerated interval: ' + button._intervalId);
         
         if (button._currentSpeed > 50) {
           button._accelerationTimeout = setTimeout(accelerate, 1000);
@@ -341,46 +349,38 @@ const MurphTracker = () => {
       };
       
       button._accelerationTimeout = setTimeout(accelerate, 1000);
+      debugLog('✅ Set acceleration timeout: ' + button._accelerationTimeout);
     };
     
     const stopAcceleration = (button, source = 'unknown') => {
-      debugLog('🛑 Stopping from: ' + source);
+      debugLog('🛑 STOP from: ' + source);
+      debugLog('🔍 Current interval: ' + button._intervalId);
+      debugLog('🔍 Current timeout: ' + button._accelerationTimeout);
+      
+      let cleared = false;
       
       if (button._intervalId) {
         clearInterval(button._intervalId);
+        debugLog('✅ Cleared interval: ' + button._intervalId);
         button._intervalId = null;
-        debugLog('✅ Interval cleared');
+        cleared = true;
       }
+      
       if (button._accelerationTimeout) {
         clearTimeout(button._accelerationTimeout);
+        debugLog('✅ Cleared timeout: ' + button._accelerationTimeout);
         button._accelerationTimeout = null;
-        debugLog('✅ Timeout cleared');
+        cleared = true;
       }
-    };
-
-    // Mouse events (desktop)
-    const handleMouseDown = (e) => {
-      e.preventDefault();
-      debugLog('🖱️ Mouse down');
       
-      if (!disabled) {
-        const button = e.currentTarget;
-        startAcceleration(button);
-        
-        // Global mouse up listener
-        const handleGlobalMouseUp = () => {
-          debugLog('🖱️ Global mouse up');
-          stopAcceleration(button, 'global mouse up');
-          document.removeEventListener('mouseup', handleGlobalMouseUp);
-          document.removeEventListener('mouseleave', handleGlobalMouseUp);
-        };
-        
-        document.addEventListener('mouseup', handleGlobalMouseUp);
-        document.addEventListener('mouseleave', handleGlobalMouseUp);
+      if (!cleared) {
+        debugLog('⚠️ Nothing to clear!');
       }
+      
+      debugLog('🏁 Stop complete');
     };
 
-    // Touch events (mobile)
+    // Touch events (focusing on mobile since that's the issue)
     const handleTouchStart = (e) => {
       e.preventDefault();
       debugLog('📱 Touch start');
@@ -389,7 +389,7 @@ const MurphTracker = () => {
         const button = e.currentTarget;
         startAcceleration(button);
         
-        // Store global handlers so we can remove them
+        // Store global handlers
         button._globalTouchEnd = () => {
           debugLog('📱 Global touch end');
           stopAcceleration(button, 'global touch end');
@@ -399,7 +399,6 @@ const MurphTracker = () => {
         };
         
         button._globalTouchMove = (e) => {
-          // Check if touch moved outside the button
           const touch = e.touches[0];
           if (touch) {
             const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -419,13 +418,6 @@ const MurphTracker = () => {
       }
     };
 
-    const handleMouseUp = (e) => {
-      e.preventDefault();
-      debugLog('🖱️ Local mouse up');
-      const button = e.currentTarget;
-      stopAcceleration(button, 'local mouse up');
-    };
-
     const handleTouchEnd = (e) => {
       e.preventDefault();
       debugLog('📱 Local touch end');
@@ -438,6 +430,34 @@ const MurphTracker = () => {
         document.removeEventListener('touchcancel', button._globalTouchEnd);
         document.removeEventListener('touchmove', button._globalTouchMove);
       }
+    };
+
+    // Still include mouse events for desktop
+    const handleMouseDown = (e) => {
+      e.preventDefault();
+      debugLog('🖱️ Mouse down');
+      
+      if (!disabled) {
+        const button = e.currentTarget;
+        startAcceleration(button);
+        
+        const handleGlobalMouseUp = () => {
+          debugLog('🖱️ Global mouse up');
+          stopAcceleration(button, 'global mouse up');
+          document.removeEventListener('mouseup', handleGlobalMouseUp);
+          document.removeEventListener('mouseleave', handleGlobalMouseUp);
+        };
+        
+        document.addEventListener('mouseup', handleGlobalMouseUp);
+        document.addEventListener('mouseleave', handleGlobalMouseUp);
+      }
+    };
+
+    const handleMouseUp = (e) => {
+      e.preventDefault();
+      debugLog('🖱️ Local mouse up');
+      const button = e.currentTarget;
+      stopAcceleration(button, 'local mouse up');
     };
 
     const handleMouseLeave = (e) => {
@@ -460,7 +480,7 @@ const MurphTracker = () => {
           WebkitUserSelect: 'none',
           WebkitTouchCallout: 'none',
           WebkitTapHighlightColor: 'transparent',
-          touchAction: 'none' // Prevents scrolling on touch
+          touchAction: 'none'
         }}
       >
         <span style={{ 
