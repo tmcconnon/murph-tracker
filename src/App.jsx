@@ -129,12 +129,12 @@ const MurphTracker = () => {
   const presetPartitions = [
     { 
       id: 'official',
-      name: "Official MURPH", 
+      name: "Cindy Style", 
       rounds: 20, 
       pullups: 5, 
       pushups: 10, 
       squats: 15,
-      description: "The classic way - 20 rounds of 'Cindy'. Most popular and manageable pacing."
+      description: "Breaks things up to keep you fresh. Arguably the most popular and manageable pacing."
     },
     { 
       id: 'big',
