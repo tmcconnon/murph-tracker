@@ -78,61 +78,42 @@ const MurphTracker = () => {
   // Accelerated counter hook
   const useAcceleratedCounter = () => {
     const intervalRef = useRef(null);
-    const actionRef = useRef(null);
-    const countRef = useRef(0);
 
     const startCounter = (action) => {
-      console.log('startCounter called'); // Debug
-      
-      // Store the action in a ref so it doesn't go stale
-      actionRef.current = action;
-      countRef.current = 0;
+      console.log('startCounter called - about to create interval'); // Debug
       
       // Clear any existing interval
       if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      
-      // Fire immediately
-      action();
-      triggerHapticFeedback('light');
-      
-      // Start simple repeating interval
-      intervalRef.current = setInterval(() => {
-        if (actionRef.current) {
-          console.log('Firing action, count:', countRef.current); // Debug
-          actionRef.current();
-          triggerHapticFeedback('light');
-          countRef.current++;
-          
-          // Simple acceleration: get faster every 3 increments
-          if (countRef.current % 3 === 0) {
-            clearInterval(intervalRef.current);
-            const newSpeed = Math.max(50, 300 - (countRef.current * 30));
-            console.log('New speed:', newSpeed); // Debug
-            
-            intervalRef.current = setInterval(() => {
-              if (actionRef.current) {
-                console.log('Firing action (accelerated), count:', countRef.current);
-                actionRef.current();
-                triggerHapticFeedback('light');
-                countRef.current++;
-              }
-            }, newSpeed);
-          }
-        }
-      }, 300); // Start slow: 300ms
-      
-    };
-
-    const stopCounter = () => {
-      console.log('stopCounter called'); // Debug
-      if (intervalRef.current) {
+        console.log('Clearing existing interval');
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      actionRef.current = null;
-      countRef.current = 0;
+      
+      // Fire immediately
+      console.log('Firing immediate action');
+      action();
+      triggerHapticFeedback('light');
+      
+      // Create a simple interval - no fancy logic
+      console.log('Creating new interval');
+      intervalRef.current = setInterval(() => {
+        console.log('INTERVAL FIRED! - about to call action'); // This should show up
+        action();
+        triggerHapticFeedback('light');
+      }, 200); // Simple 200ms interval
+      
+      console.log('Interval created with ID:', intervalRef.current);
+    };
+
+    const stopCounter = () => {
+      console.log('stopCounter called, current interval ID:', intervalRef.current); // Debug
+      if (intervalRef.current) {
+        console.log('Clearing interval');
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      } else {
+        console.log('No interval to clear');
+      }
     };
 
     // Cleanup on unmount
