@@ -8,6 +8,7 @@ const MurphTracker = () => {
   const [showMenu, setShowMenu] = useState(false);
   const [currentStep, setCurrentStep] = useState(1); // 1, 2, 3
   const [workoutHistory, setWorkoutHistory] = useState([]);
+  const [debugLogs, setDebugLogs] = useState([]); // For mobile debugging
   const [workoutState, setWorkoutState] = useState({
     phase: 'run1', // 'run1', 'bodyweight', 'run2'
     isRunning: false,
@@ -34,6 +35,12 @@ const MurphTracker = () => {
     pushups: 0,
     squats: 0
   });
+
+  // Debug function for mobile
+  const debugLog = (message) => {
+    console.log(message);
+    setDebugLogs(prev => [...prev.slice(-10), `${new Date().toLocaleTimeString()}: ${message}`]);
+  };
 
   // Timer effect
   useEffect(() => {
@@ -283,11 +290,11 @@ const MurphTracker = () => {
     }
   };
 
-  // Accelerated Button Component - Improved mobile touch support
+  // Accelerated Button Component - With on-screen debugging
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
     
     const startAcceleration = (button) => {
-      console.log('Starting acceleration');
+      debugLog('Starting acceleration');
       
       // Fire immediately
       onAction();
@@ -312,19 +319,19 @@ const MurphTracker = () => {
         }
         
         button._intervalId = setInterval(() => {
-          console.log('🔥 Accelerated interval firing, speed:', speed);
+          debugLog('🔥 Interval firing');
           onAction();
           triggerHapticFeedback('light');
         }, speed);
       };
       
       startInterval(button._currentSpeed);
-      console.log('✅ Accelerated interval created, initial speed:', button._currentSpeed);
+      debugLog('✅ Interval created: ' + button._currentSpeed + 'ms');
       
       // Set up acceleration
       const accelerate = () => {
         button._currentSpeed = Math.max(50, button._currentSpeed - 50);
-        console.log('⚡ Accelerating to:', button._currentSpeed + 'ms');
+        debugLog('⚡ Accelerating to: ' + button._currentSpeed + 'ms');
         
         startInterval(button._currentSpeed);
         
@@ -337,24 +344,24 @@ const MurphTracker = () => {
     };
     
     const stopAcceleration = (button, source = 'unknown') => {
-      console.log('Stopping acceleration from:', source);
+      debugLog('🛑 Stopping from: ' + source);
       
       if (button._intervalId) {
         clearInterval(button._intervalId);
         button._intervalId = null;
-        console.log('✅ Interval cleared');
+        debugLog('✅ Interval cleared');
       }
       if (button._accelerationTimeout) {
         clearTimeout(button._accelerationTimeout);
         button._accelerationTimeout = null;
-        console.log('✅ Timeout cleared');
+        debugLog('✅ Timeout cleared');
       }
     };
 
     // Mouse events (desktop)
     const handleMouseDown = (e) => {
       e.preventDefault();
-      console.log('🖱️ Mouse down detected');
+      debugLog('🖱️ Mouse down');
       
       if (!disabled) {
         const button = e.currentTarget;
@@ -362,7 +369,7 @@ const MurphTracker = () => {
         
         // Global mouse up listener
         const handleGlobalMouseUp = () => {
-          console.log('🖱️ Global mouse up detected');
+          debugLog('🖱️ Global mouse up');
           stopAcceleration(button, 'global mouse up');
           document.removeEventListener('mouseup', handleGlobalMouseUp);
           document.removeEventListener('mouseleave', handleGlobalMouseUp);
@@ -376,7 +383,7 @@ const MurphTracker = () => {
     // Touch events (mobile)
     const handleTouchStart = (e) => {
       e.preventDefault();
-      console.log('📱 Touch start detected');
+      debugLog('📱 Touch start');
       
       if (!disabled) {
         const button = e.currentTarget;
@@ -384,7 +391,7 @@ const MurphTracker = () => {
         
         // Store global handlers so we can remove them
         button._globalTouchEnd = () => {
-          console.log('📱 Global touch end detected');
+          debugLog('📱 Global touch end');
           stopAcceleration(button, 'global touch end');
           document.removeEventListener('touchend', button._globalTouchEnd);
           document.removeEventListener('touchcancel', button._globalTouchEnd);
@@ -397,7 +404,7 @@ const MurphTracker = () => {
           if (touch) {
             const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
             if (!button.contains(elementAtPoint)) {
-              console.log('📱 Touch moved outside button');
+              debugLog('📱 Touch moved outside');
               stopAcceleration(button, 'touch move outside');
               document.removeEventListener('touchend', button._globalTouchEnd);
               document.removeEventListener('touchcancel', button._globalTouchEnd);
@@ -414,14 +421,14 @@ const MurphTracker = () => {
 
     const handleMouseUp = (e) => {
       e.preventDefault();
-      console.log('🖱️ Local mouse up detected');
+      debugLog('🖱️ Local mouse up');
       const button = e.currentTarget;
       stopAcceleration(button, 'local mouse up');
     };
 
     const handleTouchEnd = (e) => {
       e.preventDefault();
-      console.log('📱 Local touch end detected');
+      debugLog('📱 Local touch end');
       const button = e.currentTarget;
       stopAcceleration(button, 'local touch end');
       
@@ -434,7 +441,7 @@ const MurphTracker = () => {
     };
 
     const handleMouseLeave = (e) => {
-      console.log('🖱️ Mouse leave detected');
+      debugLog('🖱️ Mouse leave');
       const button = e.currentTarget;
       stopAcceleration(button, 'mouse leave');
     };
@@ -612,6 +619,26 @@ const MurphTracker = () => {
             <p className="text-lg text-gray-300 mb-1">Build & track your MURPH workouts</p>
             <p className="text-sm text-gray-400">Configure every detail to match your<br />fitness level & goals in 3 simple steps</p>
           </div>
+
+          {/* Debug Panel for Mobile */}
+          {debugLogs.length > 0 && (
+            <div className="bg-red-900 rounded-lg p-4 mb-6 max-h-40 overflow-y-auto">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-sm font-bold text-red-200">Debug Logs (Mobile)</h3>
+                <button 
+                  onClick={() => setDebugLogs([])}
+                  className="text-red-300 hover:text-red-100 text-xs"
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="text-xs text-red-100 space-y-1 font-mono">
+                {debugLogs.map((log, i) => (
+                  <div key={i}>{log}</div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* STEP 1: RUNNING */}
           {currentStep === 1 && (
