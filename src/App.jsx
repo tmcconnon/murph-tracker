@@ -436,21 +436,12 @@ const MurphTracker = () => {
               {canProceedFromStep(1) && (
                 <button 
                   onClick={() => setCurrentStep(2)}
-                  className="w-full bg-green-600 hover:bg-green-500 rounded-lg p-4 font-semibold text-lg transition-colors flex items-center justify-center gap-2 mb-6"
+                  className="w-full bg-green-600 hover:bg-green-500 rounded-lg p-4 font-semibold text-lg transition-colors flex items-center justify-center gap-2"
                 >
                   Next: Choose Your Reps & Sets
                   <ChevronRight size={20} />
                 </button>
               )}
-
-              {/* Workout History Button */}
-              <button 
-                onClick={() => setScreen('history')}
-                className="w-full bg-gray-700 hover:bg-gray-600 rounded-lg p-4 font-semibold transition-colors flex items-center justify-center gap-2"
-              >
-                <History size={20} />
-                View Workout History ({workoutHistory.length})
-              </button>
             </>
           )}
 
