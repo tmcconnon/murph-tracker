@@ -79,43 +79,55 @@ const MurphTracker = () => {
   const useAcceleratedCounter = () => {
     const timeoutRef = useRef(null);
     const intervalRef = useRef(null);
-    const speedRef = useRef(200); // Start at 200ms intervals
+    const accelerationTimeoutRef = useRef(null);
 
     const startCounter = useCallback((action) => {
-      // Clear any existing timeouts/intervals
+      // Clear any existing timers
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (accelerationTimeoutRef.current) clearTimeout(accelerationTimeoutRef.current);
       
-      // Reset speed
-      speedRef.current = 200;
-      
-      // Initial action
+      // Fire immediately
       action();
       triggerHapticFeedback('light');
       
-      // Start incrementing after 300ms delay
+      // Start repeating after delay
       timeoutRef.current = setTimeout(() => {
-        intervalRef.current = setInterval(() => {
+        // Start at 200ms intervals
+        let currentSpeed = 200;
+        
+        const repeat = () => {
           action();
           triggerHapticFeedback('light');
+        };
+        
+        intervalRef.current = setInterval(repeat, currentSpeed);
+        
+        // Accelerate every 1000ms
+        const accelerate = () => {
+          currentSpeed = Math.max(50, currentSpeed - 50); // Get faster by 50ms, min 50ms
           
-          // Accelerate (decrease interval) every few increments, but cap at 50ms
-          speedRef.current = Math.max(50, speedRef.current * 0.92);
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = setInterval(repeat, currentSpeed);
+          }
           
-          // Update interval speed
-          clearInterval(intervalRef.current);
-          intervalRef.current = setInterval(() => {
-            action();
-            triggerHapticFeedback('light');
-          }, speedRef.current);
-        }, speedRef.current);
+          // Schedule next acceleration if not at max speed
+          if (currentSpeed > 50) {
+            accelerationTimeoutRef.current = setTimeout(accelerate, 1000);
+          }
+        };
+        
+        // Start acceleration after 1 second
+        accelerationTimeoutRef.current = setTimeout(accelerate, 1000);
+        
       }, 300);
     }, []);
 
     const stopCounter = useCallback(() => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if (intervalRef.current) clearInterval(intervalRef.current);
-      speedRef.current = 200; // Reset speed
+      if (accelerationTimeoutRef.current) clearTimeout(accelerationTimeoutRef.current);
     }, []);
 
     // Cleanup on unmount
@@ -123,6 +135,7 @@ const MurphTracker = () => {
       return () => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         if (intervalRef.current) clearInterval(intervalRef.current);
+        if (accelerationTimeoutRef.current) clearTimeout(accelerationTimeoutRef.current);
       };
     }, []);
 
