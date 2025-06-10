@@ -290,86 +290,45 @@ const MurphTracker = () => {
     }
   };
 
-  // Accelerated Button Component - Using requestAnimationFrame (more reliable)
+  // Accelerated Button Component - Simple fixed-speed hold
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
     
-    const startAcceleration = (button) => {
-      debugLog('🟢 Starting RAF acceleration');
+    const startHold = (button) => {
+      debugLog('🟢 Starting fixed-speed hold');
       
-      // Force stop any existing animation
-      if (button._rafId) {
-        cancelAnimationFrame(button._rafId);
-        debugLog('🧹 Cancelled existing RAF: ' + button._rafId);
+      // Clear any existing interval
+      if (button._intervalId) {
+        clearInterval(button._intervalId);
+        debugLog('🧹 Cleared existing interval: ' + button._intervalId);
       }
       
       // Fire immediately
       onAction();
       triggerHapticFeedback('light');
       
-      // Track timing
-      button._startTime = Date.now();
-      button._lastFireTime = Date.now();
-      button._isRunning = true;
+      // Start simple, fixed-speed interval
+      button._intervalId = setInterval(() => {
+        debugLog('🔥 Fixed interval firing');
+        onAction();
+        triggerHapticFeedback('light');
+      }, 150); // Fixed 150ms speed - fast but not too fast
       
-      // Animation loop
-      const animate = () => {
-        if (!button._isRunning) {
-          debugLog('🛑 RAF stopped via flag');
-          return;
-        }
-        
-        const now = Date.now();
-        const totalElapsed = now - button._startTime;
-        const timeSinceLastFire = now - button._lastFireTime;
-        
-        // Calculate current speed based on elapsed time
-        let requiredInterval;
-        if (totalElapsed < 1000) {
-          requiredInterval = 300; // Slow for first second
-        } else if (totalElapsed < 2000) {
-          requiredInterval = 250; // Faster after 1 second
-        } else if (totalElapsed < 3000) {
-          requiredInterval = 200; // Even faster after 2 seconds  
-        } else if (totalElapsed < 4000) {
-          requiredInterval = 150; // Faster still
-        } else if (totalElapsed < 5000) {
-          requiredInterval = 100; // Very fast
-        } else {
-          requiredInterval = 50;  // Max speed
-        }
-        
-        // Fire action if enough time has passed
-        if (timeSinceLastFire >= requiredInterval) {
-          debugLog('🔥 RAF fire at ' + requiredInterval + 'ms');
-          onAction();
-          triggerHapticFeedback('light');
-          button._lastFireTime = now;
-        }
-        
-        // Schedule next frame
-        button._rafId = requestAnimationFrame(animate);
-      };
-      
-      // Start the animation loop
-      button._rafId = requestAnimationFrame(animate);
-      debugLog('✅ Started RAF with ID: ' + button._rafId);
+      debugLog('✅ Started fixed interval: ' + button._intervalId);
     };
     
-    const stopAcceleration = (button, source = 'unknown') => {
-      debugLog('🛑 STOP RAF from: ' + source);
-      debugLog('🔍 Current RAF ID: ' + button._rafId);
-      debugLog('🔍 Running flag: ' + button._isRunning);
+    const stopHold = (button, source = 'unknown') => {
+      debugLog('🛑 STOP from: ' + source);
+      debugLog('🔍 Current interval: ' + button._intervalId);
       
-      // Multiple ways to stop
-      button._isRunning = false;
-      
-      if (button._rafId) {
-        cancelAnimationFrame(button._rafId);
-        debugLog('✅ Cancelled RAF: ' + button._rafId);
-        button._rafId = null;
+      if (button._intervalId) {
+        clearInterval(button._intervalId);
+        debugLog('✅ Cleared interval: ' + button._intervalId);
+        button._intervalId = null;
+      } else {
+        debugLog('⚠️ No interval to clear');
       }
       
-      debugLog('🏁 RAF stop complete');
+      debugLog('🏁 Stop complete');
     };
 
     // Touch events (mobile)
@@ -379,12 +338,12 @@ const MurphTracker = () => {
       
       if (!disabled) {
         const button = e.currentTarget;
-        startAcceleration(button);
+        startHold(button);
         
         // Global touch end listener
         button._globalTouchEnd = () => {
           debugLog('📱 Global touch end');
-          stopAcceleration(button, 'global touch end');
+          stopHold(button, 'global touch end');
           document.removeEventListener('touchend', button._globalTouchEnd);
           document.removeEventListener('touchcancel', button._globalTouchEnd);
           document.removeEventListener('touchmove', button._globalTouchMove);
@@ -396,7 +355,7 @@ const MurphTracker = () => {
             const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
             if (!button.contains(elementAtPoint)) {
               debugLog('📱 Touch moved outside');
-              stopAcceleration(button, 'touch move outside');
+              stopHold(button, 'touch move outside');
               document.removeEventListener('touchend', button._globalTouchEnd);
               document.removeEventListener('touchcancel', button._globalTouchEnd);
               document.removeEventListener('touchmove', button._globalTouchMove);
@@ -414,7 +373,7 @@ const MurphTracker = () => {
       e.preventDefault();
       debugLog('📱 Local touch end');
       const button = e.currentTarget;
-      stopAcceleration(button, 'local touch end');
+      stopHold(button, 'local touch end');
       
       // Clean up global listeners
       if (button._globalTouchEnd) {
@@ -431,11 +390,11 @@ const MurphTracker = () => {
       
       if (!disabled) {
         const button = e.currentTarget;
-        startAcceleration(button);
+        startHold(button);
         
         const handleGlobalMouseUp = () => {
           debugLog('🖱️ Global mouse up');
-          stopAcceleration(button, 'global mouse up');
+          stopHold(button, 'global mouse up');
           document.removeEventListener('mouseup', handleGlobalMouseUp);
           document.removeEventListener('mouseleave', handleGlobalMouseUp);
         };
@@ -449,13 +408,13 @@ const MurphTracker = () => {
       e.preventDefault();
       debugLog('🖱️ Local mouse up');
       const button = e.currentTarget;
-      stopAcceleration(button, 'local mouse up');
+      stopHold(button, 'local mouse up');
     };
 
     const handleMouseLeave = (e) => {
       debugLog('🖱️ Mouse leave');
       const button = e.currentTarget;
-      stopAcceleration(button, 'mouse leave');
+      stopHold(button, 'mouse leave');
     };
 
     return (
