@@ -290,97 +290,89 @@ const MurphTracker = () => {
     }
   };
 
-  // Accelerated Button Component - Fixed multiple interval issue
+  // Accelerated Button Component - Using requestAnimationFrame (more reliable)
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
     
     const startAcceleration = (button) => {
-      debugLog('🟢 Starting acceleration');
+      debugLog('🟢 Starting RAF acceleration');
       
-      // FORCE clear any existing timers first
-      if (button._intervalId) {
-        clearInterval(button._intervalId);
-        debugLog('🧹 Cleared existing interval: ' + button._intervalId);
-      }
-      if (button._accelerationTimeout) {
-        clearTimeout(button._accelerationTimeout);
-        debugLog('🧹 Cleared existing timeout: ' + button._accelerationTimeout);
+      // Force stop any existing animation
+      if (button._rafId) {
+        cancelAnimationFrame(button._rafId);
+        debugLog('🧹 Cancelled existing RAF: ' + button._rafId);
       }
       
       // Fire immediately
       onAction();
       triggerHapticFeedback('light');
       
-      // Track start time and current speed
+      // Track timing
       button._startTime = Date.now();
-      button._currentSpeed = 300; // Start slow
+      button._lastFireTime = Date.now();
+      button._isRunning = true;
       
-      // Create initial interval with unique tracking
-      button._intervalId = setInterval(() => {
-        debugLog('🔥 Interval ' + button._intervalId + ' firing');
-        onAction();
-        triggerHapticFeedback('light');
-      }, button._currentSpeed);
-      
-      debugLog('✅ Created interval: ' + button._intervalId + ' at ' + button._currentSpeed + 'ms');
-      
-      // Set up acceleration with better cleanup
-      const accelerate = () => {
-        button._currentSpeed = Math.max(50, button._currentSpeed - 50);
-        debugLog('⚡ Accelerating to: ' + button._currentSpeed + 'ms');
-        
-        // CRITICAL: Clear the old interval before creating new one
-        if (button._intervalId) {
-          clearInterval(button._intervalId);
-          debugLog('🧹 Cleared interval ' + button._intervalId + ' for acceleration');
+      // Animation loop
+      const animate = () => {
+        if (!button._isRunning) {
+          debugLog('🛑 RAF stopped via flag');
+          return;
         }
         
-        // Create new interval
-        button._intervalId = setInterval(() => {
-          debugLog('🔥 Interval ' + button._intervalId + ' firing (accelerated)');
+        const now = Date.now();
+        const totalElapsed = now - button._startTime;
+        const timeSinceLastFire = now - button._lastFireTime;
+        
+        // Calculate current speed based on elapsed time
+        let requiredInterval;
+        if (totalElapsed < 1000) {
+          requiredInterval = 300; // Slow for first second
+        } else if (totalElapsed < 2000) {
+          requiredInterval = 250; // Faster after 1 second
+        } else if (totalElapsed < 3000) {
+          requiredInterval = 200; // Even faster after 2 seconds  
+        } else if (totalElapsed < 4000) {
+          requiredInterval = 150; // Faster still
+        } else if (totalElapsed < 5000) {
+          requiredInterval = 100; // Very fast
+        } else {
+          requiredInterval = 50;  // Max speed
+        }
+        
+        // Fire action if enough time has passed
+        if (timeSinceLastFire >= requiredInterval) {
+          debugLog('🔥 RAF fire at ' + requiredInterval + 'ms');
           onAction();
           triggerHapticFeedback('light');
-        }, button._currentSpeed);
-        
-        debugLog('✅ Created accelerated interval: ' + button._intervalId);
-        
-        if (button._currentSpeed > 50) {
-          button._accelerationTimeout = setTimeout(accelerate, 1000);
+          button._lastFireTime = now;
         }
+        
+        // Schedule next frame
+        button._rafId = requestAnimationFrame(animate);
       };
       
-      button._accelerationTimeout = setTimeout(accelerate, 1000);
-      debugLog('✅ Set acceleration timeout: ' + button._accelerationTimeout);
+      // Start the animation loop
+      button._rafId = requestAnimationFrame(animate);
+      debugLog('✅ Started RAF with ID: ' + button._rafId);
     };
     
     const stopAcceleration = (button, source = 'unknown') => {
-      debugLog('🛑 STOP from: ' + source);
-      debugLog('🔍 Current interval: ' + button._intervalId);
-      debugLog('🔍 Current timeout: ' + button._accelerationTimeout);
+      debugLog('🛑 STOP RAF from: ' + source);
+      debugLog('🔍 Current RAF ID: ' + button._rafId);
+      debugLog('🔍 Running flag: ' + button._isRunning);
       
-      let cleared = false;
+      // Multiple ways to stop
+      button._isRunning = false;
       
-      if (button._intervalId) {
-        clearInterval(button._intervalId);
-        debugLog('✅ Cleared interval: ' + button._intervalId);
-        button._intervalId = null;
-        cleared = true;
+      if (button._rafId) {
+        cancelAnimationFrame(button._rafId);
+        debugLog('✅ Cancelled RAF: ' + button._rafId);
+        button._rafId = null;
       }
       
-      if (button._accelerationTimeout) {
-        clearTimeout(button._accelerationTimeout);
-        debugLog('✅ Cleared timeout: ' + button._accelerationTimeout);
-        button._accelerationTimeout = null;
-        cleared = true;
-      }
-      
-      if (!cleared) {
-        debugLog('⚠️ Nothing to clear!');
-      }
-      
-      debugLog('🏁 Stop complete');
+      debugLog('🏁 RAF stop complete');
     };
 
-    // Touch events (focusing on mobile since that's the issue)
+    // Touch events (mobile)
     const handleTouchStart = (e) => {
       e.preventDefault();
       debugLog('📱 Touch start');
@@ -389,7 +381,7 @@ const MurphTracker = () => {
         const button = e.currentTarget;
         startAcceleration(button);
         
-        // Store global handlers
+        // Global touch end listener
         button._globalTouchEnd = () => {
           debugLog('📱 Global touch end');
           stopAcceleration(button, 'global touch end');
@@ -432,7 +424,7 @@ const MurphTracker = () => {
       }
     };
 
-    // Still include mouse events for desktop
+    // Mouse events (desktop)
     const handleMouseDown = (e) => {
       e.preventDefault();
       debugLog('🖱️ Mouse down');
