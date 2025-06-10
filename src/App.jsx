@@ -283,20 +283,21 @@ const MurphTracker = () => {
     }
   };
 
-  // Accelerated Button Component - Using DOM storage for interval ID
+  // Accelerated Button Component - Using global window storage
   const AcceleratedButton = ({ onAction, children, className, disabled = false }) => {
-    const buttonRef = useRef(null);
+    const buttonId = useRef(`btn_${Math.random().toString(36).substr(2, 9)}`).current;
 
     const handleMouseDown = (e) => {
       e.preventDefault();
-      console.log('Mouse down - starting interval');
+      console.log('Mouse down - starting interval, button ID:', buttonId);
       
-      if (!disabled && buttonRef.current) {
-        // Clear any existing interval stored on the DOM element
-        const existingInterval = buttonRef.current.dataset.intervalId;
+      if (!disabled) {
+        // Clear any existing interval stored globally
+        const existingInterval = window[`interval_${buttonId}`];
         if (existingInterval) {
-          clearInterval(parseInt(existingInterval));
-          delete buttonRef.current.dataset.intervalId;
+          clearInterval(existingInterval);
+          delete window[`interval_${buttonId}`];
+          console.log('Cleared existing interval');
         }
         
         // Fire immediately
@@ -305,59 +306,65 @@ const MurphTracker = () => {
         
         // Create interval
         const intervalId = setInterval(() => {
-          console.log('🔥 Interval firing');
+          console.log('🔥 Interval firing for button:', buttonId);
           onAction();
           triggerHapticFeedback('light');
         }, 200);
         
-        // Store interval ID on the DOM element
-        buttonRef.current.dataset.intervalId = intervalId.toString();
-        console.log('✅ Interval created and stored on DOM:', intervalId);
+        // Store interval ID globally on window
+        window[`interval_${buttonId}`] = intervalId;
+        console.log('✅ Interval created and stored globally:', intervalId, 'Key:', `interval_${buttonId}`);
+        
+        // Verify it's stored
+        setTimeout(() => {
+          console.log('🔍 Verification - stored interval:', window[`interval_${buttonId}`]);
+        }, 50);
       }
     };
 
     const handleMouseUp = (e) => {
       e.preventDefault();
       
-      if (buttonRef.current) {
-        const intervalId = buttonRef.current.dataset.intervalId;
-        console.log('Mouse up - checking for interval:', intervalId);
-        
-        if (intervalId) {
-          clearInterval(parseInt(intervalId));
-          delete buttonRef.current.dataset.intervalId;
-          console.log('✅ Interval cleared from DOM');
-        } else {
-          console.log('❌ No interval found on DOM');
-        }
+      const intervalKey = `interval_${buttonId}`;
+      const intervalId = window[intervalKey];
+      console.log('Mouse up - checking for interval with key:', intervalKey, 'Value:', intervalId);
+      
+      if (intervalId) {
+        clearInterval(intervalId);
+        delete window[intervalKey];
+        console.log('✅ Interval cleared from global storage');
+      } else {
+        console.log('❌ No interval found in global storage');
+        // Debug: let's see what's actually on window
+        console.log('Window keys containing "interval":', Object.keys(window).filter(k => k.includes('interval')));
       }
     };
 
     const handleMouseLeave = (e) => {
-      if (buttonRef.current) {
-        const intervalId = buttonRef.current.dataset.intervalId;
-        console.log('Mouse leave - checking for interval:', intervalId);
-        
-        if (intervalId) {
-          clearInterval(parseInt(intervalId));
-          delete buttonRef.current.dataset.intervalId;
-          console.log('✅ Interval cleared on leave');
-        }
+      const intervalKey = `interval_${buttonId}`;
+      const intervalId = window[intervalKey];
+      console.log('Mouse leave - checking for interval:', intervalId);
+      
+      if (intervalId) {
+        clearInterval(intervalId);
+        delete window[intervalKey];
+        console.log('✅ Interval cleared on leave');
       }
     };
 
     // Cleanup on unmount
     useEffect(() => {
       return () => {
-        if (buttonRef.current?.dataset.intervalId) {
-          clearInterval(parseInt(buttonRef.current.dataset.intervalId));
+        const intervalId = window[`interval_${buttonId}`];
+        if (intervalId) {
+          clearInterval(intervalId);
+          delete window[`interval_${buttonId}`];
         }
       };
-    }, []);
+    }, [buttonId]);
 
     return (
       <button
-        ref={buttonRef}
         className={className}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
